@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Expense } from '../types';
 import PageHeader from '../components/PageHeader';
+import ExpenseReportModal from '../components/ExpenseReportModal'; // Importe o modal
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
 import { BilliardIcon } from '../components/icons/BilliardIcon';
@@ -9,6 +10,8 @@ import { JukeboxIcon } from '../components/icons/JukeboxIcon';
 import { CraneIcon } from '../components/icons/CraneIcon';
 import { CalculatorIcon } from '../components/icons/CalculatorIcon';
 import { safeParseFloat } from '../utils';
+import { PrinterIcon } from '../components/icons/PrinterIcon';
+import { LocationMarkerIcon } from '../components/icons/LocationMarkerIcon';
 
 interface DespesasViewProps {
   expenses: Expense[];
@@ -25,6 +28,7 @@ const CategoryDisplay: React.FC<{ category?: Expense['category'] }> = React.memo
         mesa: { icon: BilliardIcon, text: 'Mesa', color: 'cyan' },
         jukebox: { icon: JukeboxIcon, text: 'Jukebox', color: 'fuchsia' },
         grua: { icon: CraneIcon, text: 'Grua', color: 'orange' },
+        transporte: { icon: LocationMarkerIcon, text: 'Transporte', color: 'sky' },
         geral: { icon: CalculatorIcon, text: 'Geral', color: 'slate' }
     }[category];
 
@@ -33,6 +37,7 @@ const CategoryDisplay: React.FC<{ category?: Expense['category'] }> = React.memo
         cyan: 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 border-cyan-300 dark:border-cyan-600',
         fuchsia: 'bg-fuchsia-100 dark:bg-fuchsia-900/50 text-fuchsia-800 dark:text-fuchsia-300 border-fuchsia-300 dark:border-fuchsia-600',
         orange: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-600',
+        sky: 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-300 border-sky-300 dark:border-sky-600',
         slate: 'bg-slate-100 dark:bg-slate-600/50 text-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-500',
     };
 
@@ -50,6 +55,7 @@ const DespesasView: React.FC<DespesasViewProps> = ({ expenses, onAddExpense, onD
   const [category, setCategory] = useState<Expense['category']>('geral');
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +127,18 @@ const DespesasView: React.FC<DespesasViewProps> = ({ expenses, onAddExpense, onD
 
   return (
     <div>
-      <PageHeader title="Controle de Despesas" subtitle="Adicione e gerencie as despesas do seu negócio." />
+       <PageHeader 
+        title="Controle de Despesas" 
+        subtitle="Adicione e gerencie as despesas do seu negócio."
+      >
+        <button 
+          onClick={() => setIsReportModalOpen(true)} 
+          className="flex items-center gap-2 bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600"
+        >
+          <PrinterIcon className="w-5 h-5" />
+          <span>Gerar Relatório</span>
+        </button>
+      </PageHeader>
 
       <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 mb-8">
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -134,6 +151,7 @@ const DespesasView: React.FC<DespesasViewProps> = ({ expenses, onAddExpense, onD
                   <option value="mesa">Mesa de Sinuca</option>
                   <option value="jukebox">Jukebox</option>
                   <option value="grua">Grua de Pelúcia</option>
+                  <option value="transporte">Transporte</option>
               </select>
           </div>
           <button type="submit" className="md:col-start-4 w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-lime-500 text-white font-bold py-2 px-4 rounded-md hover:bg-lime-600"><PlusIcon className="w-5 h-5" /><span>Adicionar</span></button>
@@ -184,6 +202,7 @@ const DespesasView: React.FC<DespesasViewProps> = ({ expenses, onAddExpense, onD
           </tr></tfoot>
         </table></div>
       </div>
+      {isReportModalOpen && <ExpenseReportModal expenses={expenses} onClose={() => setIsReportModalOpen(false)} />}
     </div>
   );
 };

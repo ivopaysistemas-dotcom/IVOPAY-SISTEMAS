@@ -103,7 +103,7 @@ export interface Expense {
   description: string;
   amount: number;
   date: Date;
-  category: 'mesa' | 'jukebox' | 'grua' | 'geral';
+  category: 'mesa' | 'jukebox' | 'grua' | 'geral' | 'transporte';
 }
 
 export interface DebtPayment {

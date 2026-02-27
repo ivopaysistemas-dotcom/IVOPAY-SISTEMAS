@@ -153,7 +153,7 @@ const CustomerSheet: React.FC<CustomerSheetProps> = ({ customer }) => {
                 <h2 className="text-lg font-bold text-white bg-slate-700 px-4 py-2 rounded-t-lg -mb-1">TERMOS DE LOCAÇÃO</h2>
                 <div className="p-4 border border-gray-300 rounded-b-lg bg-white shadow-inner">
                     <p className="text-xs leading-relaxed">
-                        <span className="font-bold text-green-500">IVOPAY</span> <span className="font-bold text-red-500">SISTEMAS</span>
+                        O LOCATÁRIO RECEBE NESTA DATA O EQUIPAMENTO ACIMA IDENTIFICADO COM TODOS OS EQUIPAMENTOS INTERNOS E EXTERNOS EM PERFEITO ESTADO DE USO E CONSERVAÇÃO. O VALOR DA LOCAÇÃO SERÁ APURADO MEDIANTE O USO DO RESPECTIVO EQUIPAMENTO, SENDO QUE O PAGAMENTO OCORRERÁ NO PRAZO E NOS PERCENTUAIS ACIMA MENCIONADOS.
                     </p>
                 </div>
             </section>

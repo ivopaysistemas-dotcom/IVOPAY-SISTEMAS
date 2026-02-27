@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Customer } from '../types';
 import CustomerSheet from './CustomerSheet';
-import { generatePdfBlobUrl } from '../utils/pdfGenerator'; // Importa a função de gerar PDF
+import { generatePdfBlobUrl } from '../utils/pdfGenerator';
 
 interface CustomerSheetPreviewProps {
   customer: Customer;
@@ -10,64 +10,45 @@ interface CustomerSheetPreviewProps {
 }
 
 const CustomerSheetPreview: React.FC<CustomerSheetPreviewProps> = ({ customer, onClose }) => {
-  const [isProcessing, setIsProcessing] = useState(false); // Estado unificado para geração de PDF
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Função para gerar o PDF e abrir em uma nova guia
-  const handlePrintToPdf = async () => {
+  // Função para gerar o PDF e iniciar o download direto
+  const handleDownloadPdf = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
-
-    const newWindow = window.open('', '_blank');
-    if (!newWindow) {
-      alert('Não foi possível abrir uma nova guia. Verifique se os pop-ups estão bloqueados.');
-      setIsProcessing(false);
-      return;
-    }
-    newWindow.document.write('Gerando PDF para impressão... Por favor, aguarde.');
+    console.log('Iniciando o download do PDF...');
 
     try {
-      const url = await generatePdfBlobUrl(<CustomerSheet customer={customer} />);
-      newWindow.location.href = url;
-    } catch (error) {
-      console.error('Erro ao gerar PDF para impressão:', error);
-      newWindow.document.body.innerHTML = `Falha ao gerar o PDF. Erro: ${error}`;
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Função para gerar o PDF e compartilhar via Web Share API
-  const handleShare = async () => {
-    if (isProcessing) return;
-    setIsProcessing(true);
-
-    try {
-      // Gera o PDF e obtém a URL do Blob
+      console.log('Gerando PDF para download...');
       const url = await generatePdfBlobUrl(<CustomerSheet customer={customer} />);
       const response = await fetch(url);
       const blob = await response.blob();
+      console.log('PDF gerado e convertido para Blob.');
 
       const fileName = `Ficha_${customer.name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-      const file = new File([blob], fileName, { type: 'application/pdf' });
 
-      if (navigator.share && navigator.canShare({ files: [file] })) {
-        // A chamada de compartilhamento deve ser direta, sem interrupção por alerts.
-        await navigator.share({
-          files: [file],
-          title: `Ficha Cadastral - ${customer.name}`,
-          text: `Segue em anexo a ficha cadastral de ${customer.name}.`,
-        });
-      } else {
-        alert('A função de compartilhamento não é suportada neste navegador ou ambiente.');
-      }
+      // Cria um link temporário e simula o clique para iniciar o download
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = downloadUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Limpa a URL do objeto e remove o elemento 'a'
+      URL.revokeObjectURL(downloadUrl);
+      a.remove();
+
+      console.log('Download do arquivo PDF iniciado.');
+
     } catch (error) {
-      console.error('Erro ao compartilhar a ficha:', error);
-      // Evita mostrar o NotAllowedError ao usuário, pois ele ocorre quando o usuário cancela o compartilhamento
-      if (error.name !== 'NotAllowedError') {
-        alert(`Falha ao preparar o PDF para compartilhamento. Erro: ${error.message}`);
-      }
+      console.error('Ocorreu um erro durante a geração do PDF para download:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
+      alert(`Falha ao gerar o PDF. Erro: ${errorMessage}`);
     } finally {
       setIsProcessing(false);
+      console.log('Processo de download finalizado.');
     }
   };
 
@@ -82,23 +63,14 @@ const CustomerSheetPreview: React.FC<CustomerSheetPreviewProps> = ({ customer, o
       >
         {/* -- Controles de Ação -- */}
         <div className="absolute top-2 right-2 flex gap-2 z-10 print:hidden">
-          {/* Botão de Compartilhar */}
+          {/* Botão de Baixar PDF */}
           <button 
-              onClick={handleShare}
-              disabled={isProcessing}
-              className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 disabled:bg-green-400 disabled:cursor-wait"
-              aria-label="Compartilhar Ficha"
-          >
-              {isProcessing ? 'Gerando...' : 'Compartilhar'}
-          </button>
-          {/* Botão de Imprimir */}
-          <button 
-              onClick={handlePrintToPdf} 
+              onClick={handleDownloadPdf}
               disabled={isProcessing}
               className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 disabled:bg-blue-400 disabled:cursor-wait"
-              aria-label="Imprimir Ficha"
+              aria-label="Baixar Ficha em PDF"
           >
-              {isProcessing ? 'Gerando...' : 'Imprimir'}
+              {isProcessing ? 'Gerando PDF...' : 'Baixar PDF'}
           </button>
           {/* Botão de Fechar */}
           <button
