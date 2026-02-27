@@ -1,3 +1,4 @@
+
 // components/CustomerSheet.tsx
 import React from 'react';
 import { Customer, Equipment } from '../types';
@@ -111,7 +112,10 @@ const CustomerSheet: React.FC<CustomerSheetProps> = ({ customer }) => {
       <div className="bg-white p-10 shadow-lg flex flex-col justify-between" style={{minHeight: '297mm'}}>
         <div>
             <header className="flex justify-between items-center pb-4 border-b-4 border-[var(--color-primary)]">
-            <LogoIcon />
+            <div className="text-left">
+                <p className="text-2xl font-bold text-green-500">IVOPAY</p>
+                <p className="text-2xl font-bold text-red-500">SISTEMAS</p>
+            </div>
             <div className="text-right">
                 <h1 className="text-2xl font-bold text-gray-800">Ficha Cadastral de Cliente</h1>
                 <p className="text-sm text-gray-500">Gerado em: {new Date().toLocaleDateString('pt-BR')}</p>
@@ -148,8 +152,8 @@ const CustomerSheet: React.FC<CustomerSheetProps> = ({ customer }) => {
             <section>
                 <h2 className="text-lg font-bold text-white bg-slate-700 px-4 py-2 rounded-t-lg -mb-1">TERMOS DE LOCAÇÃO</h2>
                 <div className="p-4 border border-gray-300 rounded-b-lg bg-white shadow-inner">
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                        O LOCATÁRIO RECEBE NESTA DATA O EQUIPAMENTO ACIMA IDENTIFICADO COM TODOS OS EQUIPAMENTOS INTERNOS E EXTERNOS EM PERFEITO ESTADO DE USO E CONSERVAÇÃO. O VALOR DA LOCAÇÃO SERÁ APURADO MEDIANTE O USO DO RESPECTIVO EQUIPAMENTO, SENDO QUE O PAGAMENTO OCORRERÁ NO PRAZO E NOS PERCENTUAIS ACIMA MENCIONADOS.
+                    <p className="text-xs leading-relaxed">
+                        <span className="font-bold text-green-500">IVOPAY</span> <span className="font-bold text-red-500">SISTEMAS</span>
                     </p>
                 </div>
             </section>
@@ -176,7 +180,9 @@ const CustomerSheet: React.FC<CustomerSheetProps> = ({ customer }) => {
                         ) : (
                             <div className="h-12"></div> // Placeholder
                         )}
-                        <p className="text-sm font-semibold text-gray-800 mt-1">Montanha Bilhar & Jukebox</p>
+                        <p className="text-sm font-semibold mt-1">
+                            <span className="text-green-500">IVOPAY</span> <span className="text-red-500">SISTEMAS</span>
+                        </p>
                         <p className="text-xs text-gray-500">(Assinatura Firma)</p>
                     </div>
                 </div>

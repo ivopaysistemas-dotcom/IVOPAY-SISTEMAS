@@ -1,3 +1,4 @@
+
 // views/ConfiguracoesView.tsx
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
@@ -71,13 +72,27 @@ const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
+  // State for PIX Configuration
+  const [pixConfig, setPixConfig] = useState({ key: '', name: '', city: '' });
+
   useEffect(() => {
+    // Load saved users
     try {
         const usersStr = localStorage.getItem('savedUsers');
         const users: SavedUser[] = usersStr ? JSON.parse(usersStr) : [];
         setSavedUsers(users.filter((user) => user.email !== currentUserEmail));
     } catch (error) {
         console.error("Failed to load saved users:", error);
+    }
+
+    // Load PIX config
+    try {
+        const savedConfig = localStorage.getItem('appPixConfig');
+        if (savedConfig) {
+            setPixConfig(JSON.parse(savedConfig));
+        }
+    } catch (error) {
+        console.error("Failed to load PIX config:", error);
     }
   }, [currentUserEmail]);
   
@@ -123,14 +138,13 @@ const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
     if (file) {
       onMergeData(file);
     }
-    // Limpa o valor para permitir a seleção do mesmo arquivo novamente
     event.target.value = '';
   };
 
   const handleColorChange = (colorType: keyof AppThemeColors, value: string) => {
     const newColors = { ...themeColors, [colorType]: value };
     setThemeColors(newColors);
-    applyThemeColors(newColors); // Live preview
+    applyThemeColors(newColors);
   };
 
   const saveThemeColors = () => {
@@ -164,6 +178,32 @@ const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
         showNotification('Erro ao remover conta.', 'error');
       }
     }
+  };
+
+  const handlePixConfigChange = (field: keyof typeof pixConfig, value: string) => {
+    let processedValue = value;
+    if (field === 'name') {
+        processedValue = value.slice(0, 25);
+    } else if (field === 'city') {
+        processedValue = value.slice(0, 15);
+    }
+    setPixConfig(prev => ({ ...prev, [field]: processedValue }));
+  };
+
+  const handleSavePixConfig = () => {
+    if (!pixConfig.key || !pixConfig.name || !pixConfig.city) {
+        showNotification('Por favor, preencha todos os campos da configuração PIX.', 'error');
+        return;
+    }
+
+    const configToSave = {
+        key: pixConfig.key.trim(),
+        name: pixConfig.name.trim(),
+        city: pixConfig.city.trim().toUpperCase()
+    };
+    
+    localStorage.setItem('appPixConfig', JSON.stringify(configToSave));
+    showNotification('Configuração PIX salva com sucesso!', 'success');
   };
   
   const formatBytes = (bytes: number, decimals = 2) => {
@@ -253,6 +293,59 @@ const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
               </button>
             )}
           </div>
+        </section>
+
+        {/* PIX Settings Section */}
+        <section>
+            <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-6 border-b border-slate-200 dark:border-slate-700 pb-2">PIX e Recibos</h2>
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Configuração do QR Code PIX</h3>
+                <p className="text-slate-500 dark:text-slate-400 mb-4">
+                    Insira as informações que serão usadas para gerar o QR Code PIX nos recibos de cobrança. O QR Code será gerado para pagamento de valor aberto.
+                </p>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="pix-key" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Chave PIX</label>
+                        <input
+                            type="text"
+                            id="pix-key"
+                            value={pixConfig.key}
+                            onChange={(e) => handlePixConfigChange('key', e.target.value)}
+                            placeholder="Email, CPF/CNPJ, telefone ou chave aleatória"
+                            className="w-full max-w-md bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="pix-name" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Nome do Recebedor (até 25 caracteres)</label>
+                        <input
+                            type="text"
+                            id="pix-name"
+                            value={pixConfig.name}
+                            onChange={(e) => handlePixConfigChange('name', e.target.value)}
+                            placeholder="Seu nome ou nome da empresa"
+                            maxLength={25}
+                            className="w-full max-w-md bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="pix-city" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Cidade do Recebedor (até 15 caracteres)</label>
+                        <input
+                            type="text"
+                            id="pix-city"
+                            value={pixConfig.city}
+                            onChange={(e) => handlePixConfigChange('city', e.target.value)}
+                            placeholder="Ex: SAO PAULO"
+                            maxLength={15}
+                            className="w-full max-w-md bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md py-2 px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
+                        />
+                    </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4 mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <button onClick={handleSavePixConfig} className="bg-lime-500 text-white font-bold py-2 px-4 rounded-md hover:bg-lime-600">
+                        Salvar Configuração PIX
+                    </button>
+                </div>
+            </div>
         </section>
 
         {/* Storage Section */}

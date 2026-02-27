@@ -392,10 +392,17 @@ const CobrancasView: React.FC<CobrancasViewProps> = ({
                         th { background-color: #f2f2f2; font-weight: bold; }
                         .currency { text-align: right; font-family: monospace; }
                         .total-row { font-weight: bold; border-top: 2px solid #333; }
+                        .header-logo { text-align: center; margin-bottom: 20px; }
+                        .header-logo span { font-weight: bold; }
                     </style>
                 </head>
                 <body>
-                    <h1>Montanha Bilhar & Jukebox</h1>
+                    <div class="header-logo">
+                        <h1>
+                            <span style="color: green;">IVOPAY</span>
+                            <span style="color: red;">SISTEMAS</span>
+                        </h1>
+                    </div>
                     <h2>Relatório de Clientes Devedores - ${new Date().toLocaleDateString('pt-BR')}</h2>
                     <table>
                         <thead>

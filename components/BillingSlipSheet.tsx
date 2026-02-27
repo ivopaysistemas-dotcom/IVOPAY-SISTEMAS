@@ -1,3 +1,4 @@
+
 // components/BillingSlipSheet.tsx
 import React from 'react';
 import { Customer, Equipment } from '../types';
@@ -52,7 +53,9 @@ const BillingSlipSheet: React.FC<BillingSlipSheetProps> = ({ customer, equipment
         <div className="bg-white text-black p-4 border border-gray-300 flex flex-col h-full font-sans">
             {/* Header */}
             <header className="flex justify-between items-baseline border-b-2 border-gray-800 pb-2 mb-3">
-                <h1 className="text-base font-black tracking-tight" style={{ fontFamily: "'Times New Roman', serif" }}>MONTANHA BILHAR & JUKEBOX</h1>
+                <h1 className="text-base font-black tracking-tight">
+                    <span className="text-green-500">IVOPAY</span> <span className="text-red-500">SISTEMAS</span>
+                </h1>
                 <p className="text-xs font-semibold text-gray-600 uppercase">{customer.cidade}</p>
             </header>
             

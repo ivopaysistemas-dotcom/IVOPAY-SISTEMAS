@@ -7,7 +7,7 @@ const PIX_KEY = "43999581993";
 
 const PAYMENT_METHOD_TEXT = {
     pix: 'PIX',
-    dinheiro: 'DINHEIRO',
+    dinheiro: 'DINHEiro',
     debito_negativo: 'NEGATIVO',
     misto: 'MISTO',
 };
@@ -98,7 +98,7 @@ Chave (Celular): ${PIX_KEY}
 *** COMPROVANTE PARA CONFERENCIA ***
 *** SEM VALOR FISCAL ***` : '';
 
-    return `*MONTANHA BILHAR & JUKEBOX*
+    return `*IVOPAY SISTEMAS*
 ${isProvisional ? 'DEMONSTRATIVO DE COBRANÇA' : 'ACERTO DE CONTAS'}
 --------------------------------
 CLIENTE: ${billing.customerName}
@@ -112,7 +112,7 @@ ${provisionalFooter}
 
 
 export function generateDebtText(debtPayment: DebtPayment): string {
-    return `*MONTANHA BILHAR & JUKEBOX*
+    return `*IVOPAY SISTEMAS*
 COMPROVANTE DE PAGAMENTO DE DIVIDA
 --------------------------------
 CLIENTE: ${debtPayment.customerName}
@@ -132,7 +132,7 @@ export function generateEquipmentLabelText(equipment: Equipment): string {
   
   const text = `
 ********************************
-*  MONTANHA BILHAR E JUKEBOX   *
+*        IVOPAY SISTEMAS        *
 ********************************
 
         EQUIPAMENTO
@@ -150,7 +150,7 @@ export function generateCustomerLabelText(customer: Customer): string {
   const qrData = customer.id;
   return `
 ********************************
-*  MONTANHA BILHAR E JUKEBOX   *
+*        IVOPAY SISTEMAS        *
 ********************************
 
       ETIQUETA DE CLIENTE
@@ -164,7 +164,7 @@ ${qrData}
 }
 
 export function generateCustomerShareText(customer: Customer): string {
-  let text = `*Dados do Cliente - Montanha Bilhar & Jukebox*\n\n`;
+  let text = `*Dados do Cliente - IVOPAY SISTEMAS*\n\n`;
   text += `*Nome:* ${customer.name}\n`;
   text += `*Cidade:* ${customer.cidade}\n`;
   if (customer.endereco) text += `*Endereço:* ${customer.endereco}\n`;
@@ -183,7 +183,7 @@ export function generateCustomerShareText(customer: Customer): string {
 
   text += `\n--------------------------------\n`;
   text += `*TERMOS DE LOCAÇÃO:*\n`;
-  text += `O LOCATÁRIO RECEBE NESTA DATA O EQUIPAMENTO ACIMA IDENTIFICADO COM TODOS OS EQUIPAMENTOS INTERNOS E EXTERNOS EM PERFEITO ESTADO DE USO E CONSERVAÇÃO. O VALOR DA LOCAÇÃO SERÁ APURADO MEDIANTE O USO DO RESPECTIVO EQUIPAMENTO, SENDO QUE O PAGAMENTO OCORRERÁ NO PRAZO E NOS PERCENTUAIS ACIMA MENCIONADOS.`;
+  text += `IVOPAY SISTEMAS`;
 
   return text.trim();
 }

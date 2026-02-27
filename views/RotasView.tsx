@@ -218,7 +218,7 @@ const RotasView: React.FC<RotasViewProps> = ({ customers }) => {
             <div class="page-container">
                 <div class="header">
                     <h1>Rota de Cobrança</h1>
-                    <p>Montanha Bilhar & Jukebox - ${new Date().toLocaleDateString('pt-BR')}</p>
+                    <p>IVOPAY SISTEMAS - ${new Date().toLocaleDateString('pt-BR')}</p>
                 </div>
                 <table class="customers-table">
                     <thead>

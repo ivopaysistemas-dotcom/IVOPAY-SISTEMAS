@@ -1,3 +1,4 @@
+
 // views/RelatoriosView.tsx
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Billing, Customer, DebtPayment, Expense, Equipment } from '../types';
@@ -320,7 +321,9 @@ const RelatoriosView: React.FC<RelatoriosViewProps> = ({ customers, billings, ex
           `}
         </head>
         <body>
-          <h1>Montanha Bilhar & Jukebox</h1>
+            <h1>
+                <span style="color: green; font-weight: bold;">IVOPAY</span> <span style="color: red; font-weight: bold;">SISTEMAS</span>
+            </h1>
           <h2>${title} - Período: ${dateTitle}</h2>
           ${content}
         </body>

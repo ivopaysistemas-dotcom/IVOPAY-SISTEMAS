@@ -35,6 +35,7 @@ import { sunmiPrinterService } from './utils/sunmiPrinter';
 import ActionFeedbackOverlay from './components/SuccessAnimationOverlay';
 import { optimizeRoute } from './utils/routeOptimizer';
 import { playSuccessSound, unlockAudio } from './utils/soundPlayer';
+import { generateValuelessPixPayload } from './utils/pix';
 
 
 // Modals
@@ -1332,7 +1333,7 @@ const App: React.FC = () => {
         const a = document.createElement('a');
         const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
         a.href = url;
-        a.download = `backup-montanha-gestao-${timestamp}.json`;
+        a.download = `backup-ivopay-sistemas-${timestamp}.json`;
         a.click();
         URL.revokeObjectURL(url);
         const backupTimestamp = new Date().toISOString();
@@ -1472,17 +1473,34 @@ const App: React.FC = () => {
             const isBilling = 'equipmentType' in receiptData;
             const title = isBilling ? `Comprovante - ${(receiptData as Billing).customerName}` : `Pagamento - ${receiptData.customerName}`;
 
-            const pixPayload = "00020126360014BR.GOV.BCB.PIX0114+55439995819935204000053039865802BR5915BILHAR MONTANHA6012Jaguapita-PR62070503***6304F96E";
-            const qrCodeDataUrl = await QRCode.toDataURL(pixPayload, {
-                width: 150,
-                margin: 1,
-                errorCorrectionLevel: 'M',
-                color: { dark: '#000000', light: '#FFFFFF' }
-            });
+            let qrCodeDataUrl: string | null = null;
+            let pixKey: string | null = null;
+
+            try {
+                const savedConfig = localStorage.getItem('appPixConfig');
+                if (savedConfig) {
+                    const pixConfig = JSON.parse(savedConfig);
+                    if (pixConfig.key && pixConfig.name && pixConfig.city) {
+                        const pixPayload = generateValuelessPixPayload(pixConfig.key, pixConfig.name, pixConfig.city);
+                        if (pixPayload) {
+                            qrCodeDataUrl = await QRCode.toDataURL(pixPayload, {
+                                width: 150,
+                                margin: 1,
+                                errorCorrectionLevel: 'M',
+                                color: { dark: '#000000', light: '#FFFFFF' },
+                            });
+                            pixKey = pixConfig.key;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to generate PIX QR Code:", error);
+                // Do not show a notification to the user, just log the error
+            }
 
             const SheetComponent = isBilling 
-                ? <ReceiptSheet billing={receiptData as Billing} qrCodeDataUrl={qrCodeDataUrl} /> 
-                : <DebtReceiptSheet debtPayment={receiptData as DebtPayment} qrCodeDataUrl={qrCodeDataUrl} />;
+                ? <ReceiptSheet billing={receiptData as Billing} qrCodeDataUrl={qrCodeDataUrl} pixKey={pixKey} /> 
+                : <DebtReceiptSheet debtPayment={receiptData as DebtPayment} qrCodeDataUrl={qrCodeDataUrl} pixKey={pixKey} />;
             
             const content = ReactDOMServer.renderToString(SheetComponent);
             const printableHtml = generatePrintableHtml(title, content);

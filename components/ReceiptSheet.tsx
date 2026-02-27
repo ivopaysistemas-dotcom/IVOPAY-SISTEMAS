@@ -1,12 +1,13 @@
+
 // components/ReceiptSheet.tsx
 import React from 'react';
 import { Billing } from '../types';
-import PixQrCode from './PixQrCode';
 
 interface ReceiptSheetProps {
   billing: Billing;
   isProvisional?: boolean;
-  qrCodeDataUrl?: string; // For SSR/PDF printing
+  qrCodeDataUrl: string | null;
+  pixKey: string | null;
 }
 
 const ReceiptRow: React.FC<{label: string, value: string | number}> = ({ label, value }) => (
@@ -17,7 +18,7 @@ const ReceiptRow: React.FC<{label: string, value: string | number}> = ({ label, 
     </div>
 );
 
-const ReceiptSheet: React.FC<ReceiptSheetProps> = ({ billing, isProvisional, qrCodeDataUrl }) => {
+const ReceiptSheet: React.FC<ReceiptSheetProps> = ({ billing, isProvisional, qrCodeDataUrl, pixKey }) => {
     const isMesa = billing.equipmentType === 'mesa';
     const isGrua = billing.equipmentType === 'grua';
     
@@ -123,7 +124,7 @@ const ReceiptSheet: React.FC<ReceiptSheetProps> = ({ billing, isProvisional, qrC
     return (
         <div className="font-bold text-sm">
             <div className="header text-center mb-4">
-                <h3 className="font-black text-lg">MONTANHA BILHAR & JUKEBOX</h3>
+                <h3 className="font-black text-lg">IVOPAY SISTEMAS</h3>
                 <p className="font-bold">{isProvisional ? 'DEMONSTRATIVO DE COBRANÇA' : 'ACERTO DE CONTAS'}</p>
                 <p>--------------------------------</p>
             </div>
@@ -163,18 +164,16 @@ const ReceiptSheet: React.FC<ReceiptSheetProps> = ({ billing, isProvisional, qrC
                 )}
             </div>
 
-            {qrCodeDataUrl ? (
-                <div className="text-center mt-4">
+            {qrCodeDataUrl && pixKey && (
+                <div className="text-center mt-4 pt-4 border-t border-dashed border-black">
                     <p className="font-bold">Pague com PIX</p>
                     <img src={qrCodeDataUrl} alt="PIX QR Code" style={{ width: '150px', height: '150px', margin: '8px auto', border: '4px solid black' }} />
-                    <p className="text-xs">Chave: +5543999581993</p>
+                    <p className="text-xs" style={{ wordWrap: 'break-word' }}>Chave: {pixKey}</p>
                 </div>
-            ) : (
-                <PixQrCode />
             )}
 
             <div className="text-center mt-4 pt-2 border-t border-dashed border-black">
-                <p className="font-bold text-xs">MONTANHA BILHAR & JUKEBOX</p>
+                <p className="font-bold text-xs">IVOPAY SISTEMAS</p>
                 <p className="text-xs">DIVERSAO LEVADO A SERIO.</p>
             </div>
         </div>

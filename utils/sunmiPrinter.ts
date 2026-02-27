@@ -1,3 +1,4 @@
+
 // utils/sunmiPrinter.ts
 
 // Declara a interface global para a API da impressora Sunmi,
@@ -37,7 +38,7 @@ class SunmiPrinterService {
       let printText = line.trim();
 
       // Heurística para centralizar os títulos principais
-      if (printText.includes('MONTANHA BILHAR') || printText === 'ACERTO DE CONTAS' || printText === 'DEMONSTRATIVO DE COBRANÇA' || printText === 'COMPROVANTE DE PAGAMENTO DE DIVIDA') {
+      if (printText.includes('IVOPAY SISTEMAS') || printText === 'ACERTO DE CONTAS' || printText === 'DEMONSTRATIVO DE COBRANÇA' || printText === 'COMPROVANTE DE PAGAMENTO DE DIVIDA') {
         align = 1; // 1 para centro
         isBold = true;
       }
@@ -97,7 +98,7 @@ Se voce pode ler isto, a
 impressora interna (Sunmi)
 esta funcionando corretamente.
 
-MONTANHA BILHAR & JUKEBOX
+IVOPAY SISTEMAS
     `.trim();
     await this.printReceipt(testText);
   }
