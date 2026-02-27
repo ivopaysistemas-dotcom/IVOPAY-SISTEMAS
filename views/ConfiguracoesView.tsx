@@ -222,7 +222,7 @@ const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
         subtitle="Gerencie os dados do aplicativo, realize backups e importe informações."
       />
 
-      <div className="space-y-12">
+      <div className="space-y-12 pb-16">
         {/* Account Section */}
         <section>
             <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-6 border-b border-slate-200 dark:border-slate-700 pb-2">Gerenciamento de Contas</h2>
