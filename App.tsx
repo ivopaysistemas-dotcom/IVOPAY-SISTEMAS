@@ -1,7 +1,7 @@
 // App.tsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { User, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
-import { collection, query, onSnapshot, Timestamp, getDocs, deleteDoc, doc, setDoc, addDoc, updateDoc, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+import { User, onAuthStateChanged, signOut } from "firebase/auth";
+import { collection, query, onSnapshot, Timestamp, getDocs, deleteDoc, doc, setDoc, addDoc, updateDoc, getDoc, writeBatch } from "firebase/firestore";
 import ReactDOMServer from 'react-dom/server';
 import QRCode from 'qrcode';
 import { auth, db, processFirestoreDoc } from './firebase';

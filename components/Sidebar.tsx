@@ -1,5 +1,5 @@
 import React from 'react';
-import { User } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+import { User } from "firebase/auth";
 import { View } from '../types';
 import { HomeIcon } from './icons/HomeIcon';
 import { UsersIcon } from './icons/UsersIcon';

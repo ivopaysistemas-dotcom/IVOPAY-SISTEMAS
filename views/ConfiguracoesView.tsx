@@ -1,7 +1,7 @@
 
 // views/ConfiguracoesView.tsx
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+import { signOut } from "firebase/auth";
 import { auth } from '../firebase';
 import PageHeader from '../components/PageHeader';
 import { CloudUploadIcon } from '../components/icons/CloudUploadIcon';

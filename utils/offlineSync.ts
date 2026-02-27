@@ -1,5 +1,5 @@
 // utils/offlineSync.ts
-import { doc, setDoc, updateDoc, deleteDoc, collection, Timestamp, writeBatch } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+import { doc, setDoc, updateDoc, deleteDoc, collection, Timestamp, writeBatch } from "firebase/firestore";
 import { db } from '../firebase';
 
 const DB_NAME = 'montanha-gestao-db';
