@@ -31,9 +31,8 @@ const navItems = [
     { view: 'RELATORIOS' as View, label: 'Relatórios', icon: ChartBarIcon },
 ];
 
-const secondaryNavItems = [
-    { view: 'CONFIGURACOES' as View, label: 'Configurações', icon: CogIcon },
-]
+// SETTINGS is now a separate button
+const secondaryNavItems: { view: View, label: string, icon: React.FC<any> }[] = [];
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOpen, onOpenScanner, user }) => {
 
@@ -78,7 +77,17 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOp
                 }`}
             ></div>
 
-            <aside className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 p-4 flex flex-col border-r border-slate-200 dark:border-slate-700 z-30 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 no-print ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 p-4 flex flex-col border-r border-slate-200 dark:border-slate-700 z-30 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 no-print ${isOpen ? 'translate-x-0' : '-translate-x-full'} relative`}>
+                {/* Settings Button - Top Right Corner */}
+                <button 
+                    onClick={() => handleViewChange('CONFIGURACOES')}
+                    className="absolute top-3 right-3 p-2 rounded-full text-red-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors z-10"
+                    aria-label="Configurações"
+                    title="Configurações"
+                >
+                    <CogIcon className="w-6 h-6" />
+                </button>
+                
                 <div className="mb-4 text-center">
                     <LogoIcon className="w-full h-auto pt-2" />
                 </div>
