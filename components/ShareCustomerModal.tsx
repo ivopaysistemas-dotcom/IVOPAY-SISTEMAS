@@ -1,13 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Customer } from '../types';
 import { generateCustomerShareText } from '../utils/receiptGenerator';
-import { generatePdfBlobUrl } from '../utils/pdfGenerator';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { ShareIcon } from './icons/ShareIcon';
 import { ReceiptIcon } from './icons/ReceiptIcon';
-import CustomerSheet from './CustomerSheet';
-import PdfPreviewModal from './PdfPreviewModal'; // Importando o novo modal
+import CustomerSheetPreview from './CustomerSheetPreview'; // Importa a nova visualização
 
 interface ShareCustomerModalProps {
   customer: Customer | null;
@@ -15,62 +13,34 @@ interface ShareCustomerModalProps {
 }
 
 const ShareCustomerModal: React.FC<ShareCustomerModalProps> = ({ customer, onClose }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null); // Estado para a URL do PDF
-
-  useEffect(() => {
-    // Limpa a URL do Blob quando o componente é desmontado para evitar memory leaks
-    return () => {
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl);
-      }
-    };
-  }, [pdfUrl]);
+  // Estado para controlar a exibição da visualização em tela cheia
+  const [isPreviewingSheet, setIsPreviewingSheet] = useState(false);
 
   if (!customer) return null;
 
+  // Ação de compartilhamento padrão do navegador
   const handleShare = async (text: string) => {
     if (navigator.share) {
       try {
         await navigator.share({ text });
+        onClose();
       } catch (error) {
         console.error('Erro ao compartilhar:', error);
       }
     }
   };
 
-  const handleGeneratePdf = async () => {
-    if (!customer || isGenerating) return;
-
-    setIsGenerating(true);
-    try {
-      const url = await generatePdfBlobUrl(<CustomerSheet customer={customer} />);
-      setPdfUrl(url);
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      alert('Falha ao gerar o PDF da ficha.');
-    } finally {
-      setIsGenerating(false);
-      // Não fecha o modal principal, pois o de preview será aberto
-    }
-  };
-
-  const handleClosePdfPreview = () => {
-    if (pdfUrl) {
-      URL.revokeObjectURL(pdfUrl);
-    }
-    setPdfUrl(null);
-    // Agora, ao fechar a pré-visualização, fechamos também o modal de compartilhamento.
-    onClose(); 
+  // Abre a visualização da ficha em tela cheia
+  const handlePreviewSheet = () => {
+    setIsPreviewingSheet(true);
   };
 
   const shareOptions = [
     {
-      title: 'Visualizar Ficha Cadastral',
-      description: 'Gera um PDF da ficha do cliente para visualização.',
+      title: 'Visualizar Ficha do Cliente',
+      description: 'Abre uma visualização rápida da ficha em tela cheia.',
       icon: <ReceiptIcon className="w-7 h-7 text-red-500" />,
-      action: handleGeneratePdf,
-      disabled: isGenerating,
+      action: handlePreviewSheet, // Ação alterada
     },
     {
       title: 'Compartilhar no WhatsApp',
@@ -80,6 +50,7 @@ const ShareCustomerModal: React.FC<ShareCustomerModalProps> = ({ customer, onClo
         const text = generateCustomerShareText(customer);
         const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
         window.open(url, '_blank');
+        onClose();
       },
     },
     {
@@ -92,19 +63,18 @@ const ShareCustomerModal: React.FC<ShareCustomerModalProps> = ({ customer, onClo
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50" onClick={onClose}>
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-40" onClick={onClose}>
         <div className="bg-slate-100 dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 p-2 md:p-4 border-t-4 border-lime-500" onClick={(e) => e.stopPropagation()}>
           <div className="p-4">
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Compartilhar/Exportar Cliente</h2>
-              <p className="text-slate-500 dark:text-slate-400 mb-6">Escolha uma das opções abaixo para compartilhar ou exportar os dados de <span className="font-semibold">{customer.name}</span>.</p>
+              <p className="text-slate-500 dark:text-slate-400 mb-6">Escolha uma das opções abaixo para interagir com <span className="font-semibold">{customer.name}</span>.</p>
               
               <div className="grid grid-cols-1 gap-4">
                   {shareOptions.map((option, index) => (
                       <button 
                           key={index}
                           onClick={option.action}
-                          disabled={option.disabled}
-                          className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md hover:shadow-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all duration-200 text-left flex items-center gap-5 w-full disabled:opacity-50 disabled:cursor-wait"
+                          className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md hover:shadow-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all duration-200 text-left flex items-center gap-5 w-full"
                       >
                           <div className="flex-shrink-0">
                               {option.icon}
@@ -126,11 +96,11 @@ const ShareCustomerModal: React.FC<ShareCustomerModalProps> = ({ customer, onClo
         </div>
       </div>
 
-      {pdfUrl && (
-        <PdfPreviewModal 
-          pdfUrl={pdfUrl}
-          title={`Ficha Cadastral - ${customer.name}`}
-          onClose={handleClosePdfPreview}
+      {/* Renderiza a visualização em tela cheia quando ativada */}
+      {isPreviewingSheet && (
+        <CustomerSheetPreview 
+          customer={customer} 
+          onClose={() => setIsPreviewingSheet(false)} 
         />
       )}
     </>
