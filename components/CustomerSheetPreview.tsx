@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Customer } from '../types';
 import CustomerSheet from './CustomerSheet';
-import { generatePdfBlobUrl } from '../utils/pdfGenerator'; // Importa a função de gerar PDF
+import { generatePdfBlobUrl } from '../utils/pdfGenerator';
 
 interface CustomerSheetPreviewProps {
   customer: Customer;
@@ -10,68 +10,80 @@ interface CustomerSheetPreviewProps {
 }
 
 const CustomerSheetPreview: React.FC<CustomerSheetPreviewProps> = ({ customer, onClose }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Função para gerar o PDF e abrir em uma nova guia
-  const handlePrintToPdf = async () => {
-    if (isGenerating) return;
+  useEffect(() => {
+    const generatePdf = async () => {
+      setIsLoading(true);
+      try {
+        // Gera a URL do blob para o PDF em segundo plano
+        const url = await generatePdfBlobUrl(<CustomerSheet customer={customer} />);
+        setPdfUrl(url);
+        setError(null);
+      } catch (e) {
+        console.error("Erro ao gerar o PDF da ficha:", e);
+        setError("Não foi possível gerar a ficha. Por favor, tente novamente.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    setIsGenerating(true);
-    
-    const newWindow = window.open('', '_blank');
-    if (!newWindow) {
-        alert('Não foi possível abrir uma nova guia. Verifique se os pop-ups estão bloqueados.');
-        setIsGenerating(false);
-        return;
-    }
-    newWindow.document.write('Gerando PDF para impressão... Por favor, aguarde.');
+    generatePdf();
 
-    try {
-      const url = await generatePdfBlobUrl(<CustomerSheet customer={customer} />);
-      newWindow.location.href = url;
-    } catch (error) {
-      console.error('Erro ao gerar PDF para impressão:', error);
-      newWindow.document.body.innerHTML = `Falha ao gerar o PDF. Por favor, tente novamente. Erro: ${error}`;
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
+    // Função de limpeza para revogar a URL do blob quando o componente for desmontado
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer]);
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-90 flex justify-center items-center z-50 p-2 sm:p-4 md:p-6"
+      className="fixed inset-0 bg-black bg-opacity-90 flex flex-col justify-center items-center z-50"
       onClick={onClose}
     >
+      {/* Botão de Fechar, sempre visível e acessível */}
+      <button
+        onClick={onClose}
+        className="absolute top-2 right-2 bg-slate-300 dark:bg-slate-700 p-2 rounded-full hover:bg-slate-400 dark:hover:bg-slate-600 transition-colors z-20 shadow-lg"
+        aria-label="Fechar Visualização"
+      >
+        <svg className="w-6 h-6 text-slate-800 dark:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      {/* Container do Visualizador de PDF */}
       <div 
-        className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl w-full h-full max-w-5xl mx-auto overflow-y-auto relative p-4 sm:p-6 print:p-0 print:shadow-none print:rounded-none print:w-auto print:h-auto"
+        className="w-full h-full flex justify-center items-center p-0 md:p-4 lg:p-8"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* -- Controles de Impressão e Fechamento -- */}
-        <div className="absolute top-2 right-2 flex gap-2 z-10 print:hidden">
-            <button 
-                onClick={handlePrintToPdf} 
-                disabled={isGenerating}
-                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 disabled:bg-blue-400 disabled:cursor-wait"
-                aria-label="Imprimir Ficha"
-            >
-                {isGenerating ? 'Gerando...' : 'Imprimir'}
-            </button>
-            <button
-              onClick={onClose}
-              className="bg-slate-200 dark:bg-slate-700 p-2 rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
-              aria-label="Fechar"
-            >
-              <svg className="w-6 h-6 text-slate-800 dark:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-        </div>
+        {isLoading && (
+          <div className="text-white text-center p-4 rounded-lg">
+            <p className="text-lg">Gerando ficha do cliente...</p>
+            <p className="text-sm text-slate-400">Isso pode levar alguns segundos.</p>
+          </div>
+        )}
 
-        {/* -- Componente da Ficha do Cliente -- */}
-        <div className="@media print:block">
-          <CustomerSheet customer={customer} />
-        </div>
+        {error && (
+          <div className="bg-red-800 text-white p-6 rounded-lg shadow-2xl text-center max-w-sm">
+            <h3 className="font-bold text-lg mb-2">Ocorreu um Erro</h3>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {/* Exibe o PDF gerado em um elemento <embed> para compatibilidade */}
+        {pdfUrl && !isLoading && (
+          <embed
+            src={pdfUrl}
+            type="application/pdf"
+            className="w-full h-full shadow-2xl rounded-lg"
+          />
+        )}
       </div>
     </div>
   );
