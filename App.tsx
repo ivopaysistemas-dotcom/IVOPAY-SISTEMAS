@@ -1533,19 +1533,11 @@ const App: React.FC = () => {
         setFocusedCustomer(null);
     }, []);
 
-    const handleQrScanSuccess = useCallback((scannedId: string) => {
-        setQrScannerModalOpen(false); 
-    
-        const customer = customers.find(c => c.equipment?.some(e => e.id === scannedId));
-        const equipment = customer?.equipment.find(e => e.id === scannedId);
-    
-        if (customer && equipment) {
-            setView('COBRANCAS');
-            setBillingModalState({ isOpen: true, customer, equipment });
-        } else {
-            showNotification('Equipamento não encontrado.', 'error');
-        }
-    }, [customers, setView, showNotification]);
+    const handleQrScanSuccess = useCallback((customer: Customer, equipment: Equipment) => {
+        setQrScannerModalOpen(false);
+        setView('COBRANCAS');
+        setBillingModalState({ isOpen: true, customer, equipment });
+    }, [setView]);
 
     const activeView = useMemo(() => {
         switch (currentView) {
@@ -1611,7 +1603,7 @@ const App: React.FC = () => {
             {shareCustomerModalState.isOpen && shareCustomerModalState.customer && <ShareCustomerModal isOpen={shareCustomerModalState.isOpen} onClose={() => setShareCustomerModalState({ isOpen: false, customer: null })} customer={shareCustomerModalState.customer} showNotification={showNotification} onPrintCustomer={handlePrintCustomerSheet} />}
             {labelGenerationModalState.isOpen && <LabelGenerationModal isOpen={labelGenerationModalState.isOpen} onClose={() => setLabelGenerationModalState({isOpen: false})} customers={customers} showNotification={showNotification} onConfirm={() => {}} />}
             {editBillingModalState.isOpen && editBillingModalState.billing && <EditBillingModal isOpen={editBillingModalState.isOpen} onClose={() => setEditBillingModalState({ isOpen: false, billing: null })} onConfirm={handleUpdateBilling} billing={editBillingModalState.billing} customers={customers} billings={billings} />}
-            {qrScannerModalOpen && <QrScannerModal isOpen={qrScannerModalOpen} onClose={() => setQrScannerModalOpen(false)} onScanSuccess={handleQrScanSuccess} showNotification={showNotification} />}
+            {qrScannerModalOpen && <QrScannerModal isOpen={qrScannerModalOpen} onClose={() => setQrScannerModalOpen(false)} onScanSuccess={handleQrScanSuccess} showNotification={showNotification} customers={customers} />}
             {thermalPrintModalState.isOpen && <ThermalPrintActionsModal isOpen={thermalPrintModalState.isOpen} onClose={() => setThermalPrintModalState({ isOpen: false, title: '', content: '' })} title={thermalPrintModalState.title} content={thermalPrintModalState.content} onShare={shareText} onPrintSunmi={handlePrintSunmi} isSharing={isSharing} />}
             {locationActionsModalState.isOpen && locationActionsModalState.customer && <LocationActionsModal isOpen={locationActionsModalState.isOpen} onClose={() => setLocationActionsModalState({ isOpen: false, customer: null })} customer={locationActionsModalState.customer} />}
             {saveLocationModalState.isOpen && saveLocationModalState.customer && <ActionModal isOpen={saveLocationModalState.isOpen} onClose={() => setSaveLocationModalState({ isOpen: false, customer: null })} onConfirm={() => handleSaveLocation(saveLocationModalState.customer!)} title="Salvar Localização" confirmText="Salvar"><p>Deseja salvar a sua localização atual como o endereço para <strong>{saveLocationModalState.customer.name}</strong>?</p></ActionModal>}
