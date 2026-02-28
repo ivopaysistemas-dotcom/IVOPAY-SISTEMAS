@@ -5,7 +5,6 @@ import AddCustomerForm from '../components/AddCustomerForm';
 import CustomerCard from '../components/CustomerCard';
 import PageHeader from '../components/PageHeader';
 import { SearchIcon } from '../components/icons/SearchIcon';
-import { QrCodeIcon } from '../components/icons/QrCodeIcon';
 import { LocationMarkerIcon } from '../components/icons/LocationMarkerIcon';
 import CityCustomersModal from '../components/CityCustomersModal';
 import { GreenBilliardBallIcon } from '../components/icons/GreenBilliardBallIcon';
@@ -18,6 +17,7 @@ import { MapIcon } from '../components/icons/MapIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
 import { RulerIcon } from '../components/icons/RulerIcon';
+import { CashIcon } from '../components/icons/CashIcon';
 
 interface ClientesViewProps {
   customers: Customer[];
@@ -28,30 +28,27 @@ interface ClientesViewProps {
   isSaving: boolean;
   showNotification: (message: string, type?: 'success' | 'error') => void;
   onFocusCustomer: (customer: Customer) => void;
-  // Modal Trigger Callbacks
   onBillCustomer: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (customer: Customer) => void;
   onPayDebtCustomer: (customer: Customer) => void;
   onHistoryCustomer: (customer: Customer) => void;
   onShareCustomer: (customer: Customer) => void;
-  onOpenScanner: () => void;
   onLocationActions: (customer: Customer) => void;
   onWhatsAppActions: (customer: Customer) => void;
   onFinalizePendingPayment: (billing: Billing) => void;
   onPendingPaymentAction: (customer: Customer, billing: Billing) => void;
   areValuesHidden: boolean;
-  // Route handlers
   onOpenRouteCreator: () => void;
   onSaveRoute: (name: string, customerIds: string[]) => Promise<void>;
   onDeleteRoute: (routeId: string) => Promise<void>;
+  onStartBilling: () => void;
 }
 
 type EquipmentFilter = 'all' | 'mesa' | 'jukebox' | 'grua';
 type ViewMode = 'cidades' | 'rotas';
 type VisitFilter = 'all' | 'visited' | 'not_visited';
 
-// Debounce function to delay search filtering
 const debounce = (func: (...args: any[]) => void, delay: number) => {
     let timeout: ReturnType<typeof setTimeout>;
     return (...args: any[]) => {
@@ -89,7 +86,6 @@ const ClientesView: React.FC<ClientesViewProps> = ({
     onPayDebtCustomer,
     onHistoryCustomer,
     onShareCustomer,
-    onOpenScanner,
     onLocationActions,
     onWhatsAppActions,
     onFinalizePendingPayment,
@@ -98,6 +94,7 @@ const ClientesView: React.FC<ClientesViewProps> = ({
     onOpenRouteCreator,
     onSaveRoute,
     onDeleteRoute,
+    onStartBilling,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('cidades');
   const [searchQuery, setSearchQuery] = useState('');
@@ -186,7 +183,7 @@ const ClientesView: React.FC<ClientesViewProps> = ({
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><SearchIcon className="w-5 h-5 text-slate-400" /></div>
                 <input type="text" placeholder="Filtrar por nome, cidade, linha ou nº do equipamento..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} autoComplete="off" className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md py-2 pl-10 pr-4 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
-            <button onClick={onOpenScanner} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-slate-600 text-white font-bold py-2 px-4 rounded-md hover:bg-slate-500 transition-colors"><QrCodeIcon className="w-5 h-5" /><span>Escanear QR Code</span></button>
+            <button onClick={onStartBilling} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 text-white font-bold py-2 px-4 rounded-md hover:bg-emerald-500 transition-colors"><CashIcon className="w-5 h-5" /><span>Faturamento Rápido</span></button>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
             <button onClick={() => setEquipmentFilter('all')} className={`flex flex-col items-center p-2 rounded-lg transition-colors ${equipmentFilter === 'all' ? 'bg-lime-500 text-white shadow-md' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}><ListBulletIcon className={`w-8 h-8 ${equipmentFilter === 'all' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} /><span className="text-xs font-bold mt-1">Todos</span></button>

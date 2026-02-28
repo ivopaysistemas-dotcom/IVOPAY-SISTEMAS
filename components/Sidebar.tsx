@@ -10,17 +10,17 @@ import { LogoIcon } from './icons/LogoIcon';
 import { MapIcon } from './icons/MapIcon';
 import { CogIcon } from './icons/CogIcon';
 import { ListBulletIcon } from './icons/ListBulletIcon';
-import { QrCodeIcon } from './icons/QrCodeIcon';
 import { ArrowsPointingOutIcon } from './icons/ArrowsPointingOutIcon';
 import { ArrowsPointingInIcon } from './icons/ArrowsPointingInIcon';
+import { CashIcon } from './icons/CashIcon';
 
 interface SidebarProps {
   currentView: View;
   setView: (view: View) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
-  onOpenScanner: () => void;
   user: User | null;
+  onStartBilling: () => void;
 }
 
 const navItems = [
@@ -33,10 +33,9 @@ const navItems = [
     { view: 'RELATORIOS' as View, label: 'Relatórios', icon: ChartBarIcon },
 ];
 
-// SETTINGS is now a separate button
 const secondaryNavItems: { view: View, label: string, icon: React.FC<any> }[] = [];
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOpen, onOpenScanner, user }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOpen, user, onStartBilling }) => {
     const [isFullscreen, setIsFullscreen] = React.useState(false);
 
     const toggleFullScreen = () => {
@@ -63,12 +62,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOp
 
     const handleViewChange = (view: View) => {
         setView(view);
-        setIsOpen(false); // Close sidebar on navigation in mobile
+        setIsOpen(false); 
     };
     
-    const handleScanClick = () => {
-        onOpenScanner();
-        setIsOpen(false); // Close sidebar on action
+    const handleStartBillingClick = () => {
+        onStartBilling();
+        setIsOpen(false);
     };
 
     const NavButton: React.FC<{item: {view: View, label: string, icon: React.FC<any>}}> = ({ item }) => {
@@ -94,7 +93,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOp
 
     return (
         <>
-            {/* Overlay for mobile */}
             <div
                 onClick={() => setIsOpen(false)}
                 className={`fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden transition-opacity ${
@@ -103,7 +101,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOp
             ></div>
 
             <aside className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 p-4 flex flex-col border-r border-slate-200 dark:border-slate-700 z-30 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 no-print ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                {/* Settings Button - Top Right Corner */}
                 <button 
                     onClick={() => handleViewChange('CONFIGURACOES')}
                     className="absolute top-3 right-3 p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 transition-colors z-10"
@@ -113,7 +110,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOp
                     <CogIcon className="w-6 h-6" />
                 </button>
                 
-                {/* Fullscreen button */}
                 <button
                     onClick={toggleFullScreen}
                     className="absolute top-14 right-3 p-2 rounded-full text-red-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors z-10"
@@ -128,11 +124,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOp
                 </div>
                 <div className="mb-6">
                     <button 
-                        onClick={handleScanClick}
+                        onClick={handleStartBillingClick}
                         className="w-full flex items-center justify-center rounded-md p-3 transition-colors text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-500 shadow-md"
                     >
-                        <QrCodeIcon className="w-5 h-5 mr-3" />
-                        <span>Escanear e Faturar</span>
+                        <CashIcon className="w-5 h-5 mr-3" />
+                        <span>Faturamento Rápido</span>
                     </button>
                 </div>
                 <nav className="flex-grow">

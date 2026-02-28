@@ -6,7 +6,7 @@ import ReactDOMServer from 'react-dom/server';
 import QRCode from 'qrcode';
 import { auth, db, processFirestoreDoc } from './firebase';
 
-import { Customer, Billing, Expense, DebtPayment, Equipment, Warning, View, Theme, UserProfile, SavedUser, Route } from './types';
+import { Customer, Billing, Expense, DebtPayment, Equipment, Warning, View, Theme, UserProfile, SavedUser, Route, EquipmentWithCustomer } from './types';
 import { queueMutation, processSyncQueue, clearOfflineQueue, processPayloadForFirestore } from './utils/offlineSync';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -39,7 +39,6 @@ import { generateValuelessPixPayload } from './utils/pix';
 
 
 // Modals
-// FIX: Corrected import path for BillingModal to resolve module resolution error. The duplicate file at the root was likely causing the issue.
 import BillingModal from './components/BillingModal';
 import EditCustomerModal from './components/EditCustomerModal';
 import DebtPaymentModal from './components/DebtPaymentModal';
@@ -51,7 +50,6 @@ import DebtReceiptActionsModal from './components/DebtReceiptActionsModal';
 import ShareCustomerModal from './components/ShareCustomerModal';
 import LabelGenerationModal from './components/LabelGenerationModal';
 import EditBillingModal from './components/EditBillingModal';
-import QrScannerModal from './components/QrScannerModal';
 import ThermalPrintActionsModal from './components/ThermalPrintActionsModal';
 import LocationActionsModal from './components/LocationActionsModal';
 import AddPhoneModal from './components/AddPhoneModal';
@@ -60,6 +58,8 @@ import FinalizePaymentModal from './components/FinalizePaymentModal';
 import PrivacyPinModal from './components/PrivacyPinModal';
 import PendingPaymentActionModal from './components/PendingPaymentActionModal';
 import RouteCreationModal from './components/RouteCreationModal';
+import BillingStartModal from './components/BillingStartModal';
+import LabelModal from './components/LabelModal';
 
 
 type NotificationState = {
@@ -78,15 +78,14 @@ const viewTitles: Record<View, string> = {
     'CONFIGURACOES': 'Configurações',
 };
 
-// FIX: Moved `generatePrintableHtml` to module scope to prevent potential variable shadowing issues within the component.
 const generatePrintableHtml = (title: string, content: string): string => {
   return `
       <html><head><title>${title}</title><style>
         body { 
           font-family: 'Courier New', Courier, monospace;
           width: 72mm;
-          font-size: 16pt; /* User Request */
-          font-weight: 700; /* User Request: bold */
+          font-size: 16pt; 
+          font-weight: 700; 
           color: #000;
           margin: 0 auto;
           padding: 3mm;
@@ -94,11 +93,11 @@ const generatePrintableHtml = (title: string, content: string): string => {
         .header { text-align: center; margin-bottom: 15px; }
         .header h3, .font-black { 
           margin: 0; 
-          font-size: 20pt; /* User Request */
+          font-size: 20pt; 
           font-weight: 900; 
         }
         .font-bold { font-weight: 900; }
-        .text-lg { font-size: 20pt; } /* Header size */
+        .text-lg { font-size: 20pt; } 
         .text-xl { font-size: 22pt; }
         .flex { display: flex; }
         .justify-between { justify-content: space-between; }
@@ -110,14 +109,11 @@ const generatePrintableHtml = (title: string, content: string): string => {
         .border-t { border-top: 2px dashed #000; }
         .border-b { border-bottom: 2px dashed #000; }
         .border-dashed { border-style: dashed; } .border-black { border-color: #000; }
-        /* Scaled font sizes */
-        .text-base { font-size: 18pt; line-height: 1.5rem; } /* Total size */
-        .text-sm { font-size: 16pt; line-height: 1.25rem; } /* Body size */
-        .text-xs { font-size: 12pt; line-height: 1rem; } /* Footer size */
+        .text-base { font-size: 18pt; line-height: 1.5rem; } 
+        .text-sm { font-size: 16pt; line-height: 1.25rem; } 
+        .text-xs { font-size: 12pt; line-height: 1rem; } 
         .space-y-1 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.25rem; }
         img { display: block; margin: 8px auto; border: 4px solid black; }
-
-        /* Styles for dotted filler rows */
         .receipt-row {
           display: grid;
           grid-template-columns: auto 1fr auto;
@@ -127,7 +123,7 @@ const generatePrintableHtml = (title: string, content: string): string => {
         .receipt-row .filler {
           border-bottom: 2px dotted #000;
           position: relative;
-          bottom: 0.2em; /* Align dots with middle of text */
+          bottom: 0.2em; 
         }
         .receipt-row .value {
           white-space: nowrap;
@@ -176,23 +172,19 @@ const App: React.FC = () => {
     const [lastBackupTimestamp, setLastBackupTimestamp] = useState<string | null>(localStorage.getItem('lastBackupTimestamp'));
     const [actionFeedbackState, setActionFeedbackState] = useState<{ isOpen: boolean; variant: 'success' | 'edit' | 'delete' | 'pending'; message: string; onEnd?: () => void }>({ isOpen: false, variant: 'success', message: '' });
 
-    // Privacy Mode State
     const isPrivacyModeEnabled = useMemo(() => !!userProfile?.privacyPinHash, [userProfile]);
     const [isPrivacyUnlocked, setIsPrivacyUnlocked] = useState<boolean>(false);
     const areValuesHidden = useMemo(() => isPrivacyModeEnabled && !isPrivacyUnlocked, [isPrivacyModeEnabled, isPrivacyUnlocked]);
     const [privacyPinModalState, setPrivacyPinModalState] = useState<{ isOpen: boolean; mode: 'create' | 'enter'; title: string; onConfirm: (pin: string) => void; error?: string }>({ isOpen: false, mode: 'enter', title: '', onConfirm: () => {} });
 
-    // Sync & Offline State
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'offline'>('idle');
     const isSyncing = useRef(false);
     
-    // Theme and PWA states
     const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'dark');
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [isInstallBannerVisible, setIsInstallBannerVisible] = useState(true);
     
-    // Modal States
     const [billingModalState, setBillingModalState] = useState<{ isOpen: boolean; customer: Customer | null; equipment: Equipment | null; }>({ isOpen: false, customer: null, equipment: null });
     const [editCustomerModalState, setEditCustomerModalState] = useState<{ isOpen: boolean; customer: Customer | null; }>({ isOpen: false, customer: null });
     const [debtPaymentModalState, setDebtPaymentModalState] = useState<{ isOpen: boolean; customer: Customer | null; }>({ isOpen: false, customer: null });
@@ -203,13 +195,14 @@ const App: React.FC = () => {
     const [debtReceiptActionsModalState, setDebtReceiptActionsModalState] = useState<{ isOpen: boolean; debtPayment: DebtPayment | null; customer: Customer | null }>({ isOpen: false, debtPayment: null, customer: null });
     const [shareCustomerModalState, setShareCustomerModalState] = useState<{ isOpen: boolean; customer: Customer | null; }>({ isOpen: false, customer: null });
     const [labelGenerationModalState, setLabelGenerationModalState] = useState<{ isOpen: boolean; }>({ isOpen: false });
+    const [labelModalState, setLabelModalState] = useState<{ isOpen: boolean; equipment: EquipmentWithCustomer | null; }>({ isOpen: false, equipment: null });
     const [editBillingModalState, setEditBillingModalState] = useState<{ isOpen: boolean; billing: Billing | null; }>({ isOpen: false, billing: null });
-    const [qrScannerModalOpen, setQrScannerModalOpen] = useState(false);
     const [thermalPrintModalState, setThermalPrintModalState] = useState<{ isOpen: boolean; title: string; content: string; }>({ isOpen: false, title: '', content: '' });
     const [locationActionsModalState, setLocationActionsModalState] = useState<{ isOpen: boolean; customer: Customer | null; }>({ isOpen: false, customer: null });
     const [saveLocationModalState, setSaveLocationModalState] = useState<{ isOpen: boolean; customer: Customer | null; }>({ isOpen: false, customer: null });
     const [addPhoneModalState, setAddPhoneModalState] = useState<{ isOpen: boolean; customer: Customer | null; }>({ isOpen: false, customer: null });
     const [isDeleteAllDataModalOpen, setIsDeleteAllDataModalOpen] = useState(false);
+    const [isBillingStartModalOpen, setIsBillingStartModalOpen] = useState(false);
     const [fileToMerge, setFileToMerge] = useState<File | null>(null);
     const [isGeolocating, setIsGeolocating] = useState(false);
     const [finalizePaymentModalState, setFinalizePaymentModalState] = useState<{ isOpen: boolean; billing: Billing | null; }>({ isOpen: false, billing: null });
@@ -220,86 +213,53 @@ const App: React.FC = () => {
     const [focusedCustomer, setFocusedCustomer] = useState<Customer | null>(null);
     const [customerToPrint, setCustomerToPrint] = useState<Customer | null>(null);
     
-    // Saving state for UI feedback
     const [isSaving, setIsSaving] = useState(false);
 
-    // Back button handling
     const backButtonPressedOnce = useRef(false);
     
-    // --- Audio Unlock Effect ---
     useEffect(() => {
         const unlock = () => {
             unlockAudio();
-            // Remove the event listeners after the first interaction
             window.removeEventListener('mousedown', unlock);
             window.removeEventListener('touchstart', unlock);
         };
-
         window.addEventListener('mousedown', unlock);
         window.addEventListener('touchstart', unlock);
-
         return () => {
             window.removeEventListener('mousedown', unlock);
             window.removeEventListener('touchstart', unlock);
         };
     }, []);
 
-    // --- Service Worker Registration ---
     useEffect(() => {
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swUrl = new URL('sw.js', window.location.origin);
                 navigator.serviceWorker.register(swUrl)
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(error => {
-                        console.error('ServiceWorker registration failed: ', error);
-                    });
+                    .then(registration => console.log('ServiceWorker registration successful'))
+                    .catch(error => console.error('ServiceWorker registration failed: ', error));
             });
         }
     }, []);
 
-    // --- Handlers ---
     const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
         setNotification({ message, type });
     }, []);
     
-    // --- Back button exit confirmation ---
     useEffect(() => {
       const handleBackButton = (event: PopStateEvent) => {
-        // Only trigger on the main dashboard view
-        if (currentView !== 'DASHBOARD') {
-          return;
-        }
-
-        if (backButtonPressedOnce.current) {
-          // Second press, allow exit
-          return;
-        }
-
-        // First press
-        event.preventDefault(); // Prevent default back action
+        if (currentView !== 'DASHBOARD') return;
+        if (backButtonPressedOnce.current) return;
+        event.preventDefault();
         backButtonPressedOnce.current = true;
         showNotification("Pressione 'voltar' novamente para sair.", 'success');
-
-        // Prevent the actual back navigation by pushing the current state back onto the history
         history.pushState(null, '', location.href);
-
-        // Reset the flag after a timeout
-        setTimeout(() => {
-          backButtonPressedOnce.current = false;
-        }, 2000); // 2-second window for the second press
+        setTimeout(() => { backButtonPressedOnce.current = false; }, 2000);
       };
-
       window.addEventListener('popstate', handleBackButton);
-
-      return () => {
-        window.removeEventListener('popstate', handleBackButton);
-      };
+      return () => window.removeEventListener('popstate', handleBackButton);
     }, [currentView, showNotification]);
 
-    // --- Privacy & Kiosk Mode Handlers ---
     const openPinModal = useCallback((mode: 'create' | 'enter', title: string, onConfirm: (pin: string) => void) => {
         setPrivacyPinModalState({ isOpen: true, mode, title, onConfirm, error: '' });
     }, []);
@@ -369,23 +329,15 @@ const App: React.FC = () => {
         openPinModal('enter', 'Confirmar PIN para Desativar', handleRemovePin);
     }, [openPinModal, handleRemovePin]);
 
-    // --- Offline & Sync Logic ---
     const syncData = useCallback(async () => {
         if (!isOnline || isSyncing.current) return;
-    
         isSyncing.current = true;
         setSyncStatus('syncing');
-        
         try {
             const processedCount = await processSyncQueue(user?.uid || null);
-            if (processedCount > 0) {
-                showNotification(`${processedCount} ação(ões) offline foram sincronizadas!`, 'success');
-            }
+            if (processedCount > 0) showNotification(`${processedCount} ação(ões) offline foram sincronizadas!`, 'success');
             setSyncStatus('synced');
-            setTimeout(() => {
-                setSyncStatus('idle');
-                isSyncing.current = false;
-            }, 2000);
+            setTimeout(() => { setSyncStatus('idle'); isSyncing.current = false; }, 2000);
         } catch (error) {
             console.error("Sync failed:", error);
             showNotification('Falha na sincronização dos dados offline.', 'error');
@@ -395,62 +347,28 @@ const App: React.FC = () => {
     }, [isOnline, user, showNotification]);
 
     useEffect(() => {
-        const handleOnline = () => {
-            setIsOnline(true);
-            showNotification('Conexão reestabelecida. Sincronizando...', 'success');
-            syncData();
-        };
-        const handleOffline = () => {
-            setIsOnline(false);
-            setSyncStatus('offline');
-            showNotification('Você está offline. As alterações serão salvas localmente.', 'success');
-        };
-
+        const handleOnline = () => { setIsOnline(true); showNotification('Conexão reestabelecida. Sincronizando...', 'success'); syncData(); };
+        const handleOffline = () => { setIsOnline(false); setSyncStatus('offline'); showNotification('Você está offline. As alterações serão salvas localmente.', 'success'); };
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-
-        if (isOnline) {
-            syncData();
-        } else {
-            setSyncStatus('offline');
-        }
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
+        if (isOnline) syncData(); else setSyncStatus('offline');
+        return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
     }, [isOnline, syncData, showNotification]);
 
-
-    // --- Firebase Auth & Data Sync Effects ---
     const handleLoginSuccess = useCallback((email: string, password?: string, rememberMe?: boolean) => {
       try {
         const usersStr = localStorage.getItem('savedUsers');
         const users: SavedUser[] = usersStr ? JSON.parse(usersStr) : [];
         const userIndex = users.findIndex(u => u.email === email);
-
         if (rememberMe && password) {
-            // Remember me: save email and encoded password
             const newUser: SavedUser = { email, pass: btoa(password) };
-            if (userIndex > -1) {
-                users[userIndex] = newUser;
-            } else {
-                users.push(newUser);
-            }
+            if (userIndex > -1) users[userIndex] = newUser; else users.push(newUser);
         } else {
-             // Not remembering: save email only, removing any existing password
              const newUser: SavedUser = { email };
-             if (userIndex > -1) {
-                 users[userIndex] = newUser;
-             } else {
-                users.push(newUser);
-             }
+             if (userIndex > -1) users[userIndex] = newUser; else users.push(newUser);
         }
         localStorage.setItem('savedUsers', JSON.stringify(users));
-
-      } catch (error) {
-        console.error("Failed to update saved users list:", error);
-      }
+      } catch (error) { console.error("Failed to update saved users list:", error); }
     }, []);
 
     const handleLogout = useCallback(async () => {
@@ -458,9 +376,7 @@ const App: React.FC = () => {
             await signOut(auth);
             setUserProfile(null);
             setIsPrivacyUnlocked(false);
-        } catch (error) {
-            showNotification('Erro ao sair da conta.', 'error');
-        }
+        } catch (error) { showNotification('Erro ao sair da conta.', 'error'); }
     }, [showNotification]);
 
     const handleSwitchAccount = useCallback(async (email: string) => {
@@ -478,17 +394,14 @@ const App: React.FC = () => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
-            if (!user) {
-                setUserProfile(null);
-                setIsPrivacyUnlocked(false);
-            }
+            if (!user) { setUserProfile(null); setIsPrivacyUnlocked(false); }
             setIsLoadingAuth(false);
         });
         return unsubscribe;
     }, []);
     
     useEffect(() => {
-        if (user && !userProfile) { // Fetch profile only if user exists and profile isn't loaded
+        if (user && !userProfile) {
             const fetchProfile = async () => {
                 try {
                     const profileDoc = await getDoc(doc(db, "users", user.uid));
@@ -499,180 +412,101 @@ const App: React.FC = () => {
                         await setDoc(doc(db, "users", user.uid), defaultProfileData);
                         setUserProfile({ id: user.uid, email: user.email!, createdAt: new Date(), privacyPinHash: "" });
                     }
-                } catch (error) {
-                    console.error("Error fetching user profile:", error);
-                    showNotification("Erro ao carregar perfil do usuário.", "error");
-                }
+                } catch (error) { console.error("Error fetching user profile:", error); showNotification("Erro ao carregar perfil do usuário.", "error"); }
             };
             fetchProfile();
         }
     }, [user, userProfile, showNotification]);
     
-    // PWA Install Prompt
     useEffect(() => {
-        const handler = (e: Event) => {
-            e.preventDefault();
-            setDeferredPrompt(e);
-            setIsInstallBannerVisible(true);
-        };
+        const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e); setIsInstallBannerVisible(true); };
         window.addEventListener('beforeinstallprompt', handler);
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
     
-    // Set Theme
     useEffect(() => {
         const root = window.document.documentElement;
-        if (theme === 'dark') {
-            root.classList.add('dark');
-        } else {
-            root.classList.remove('dark');
-        }
+        if (theme === 'dark') root.classList.add('dark'); else root.classList.remove('dark');
         localStorage.setItem('theme', theme);
     }, [theme]);
     
-    // Apply custom colors on load
     useEffect(() => {
         try {
             const savedColors = localStorage.getItem('appThemeColors');
             const colors = savedColors ? JSON.parse(savedColors) : defaultColors;
             applyThemeColors(colors);
-        } catch(e) {
-            console.error("Error applying saved theme:", e);
-            applyThemeColors(defaultColors);
-        }
+        } catch(e) { console.error("Error applying saved theme:", e); applyThemeColors(defaultColors); }
     }, []);
     
-    // Fetch data from Firestore
     useEffect(() => {
         if (!user) {
-            // Clear local data on logout
-            setCustomers([]);
-            setBillings([]);
-            setExpenses([]);
-            setDebtPayments([]);
-            setWarnings([]);
-            setRoutes([]);
+            setCustomers([]); setBillings([]); setExpenses([]); setDebtPayments([]); setWarnings([]); setRoutes([]);
             return;
         }
-    
         const collections = ['customers', 'billings', 'expenses', 'debtPayments', 'warnings', 'routes'];
-        const setters: Record<string, React.Dispatch<React.SetStateAction<any[]>>> = {
-            customers: setCustomers,
-            billings: setBillings,
-            expenses: setExpenses,
-            debtPayments: setDebtPayments,
-            warnings: setWarnings,
-            routes: setRoutes,
-        };
-    
+        const setters: Record<string, React.Dispatch<React.SetStateAction<any[]>>> = { customers: setCustomers, billings: setBillings, expenses: setExpenses, debtPayments: setDebtPayments, warnings: setWarnings, routes: setRoutes };
         const unsubscribers = collections.map(col => {
             const q = query(collection(db, `users/${user.uid}/${col}`));
-            return onSnapshot(q, (querySnapshot) => {
-                const data = querySnapshot.docs.map(processFirestoreDoc);
-                setters[col](data as any);
-            }, (error) => {
-                console.error(`Error fetching ${col}:`, error);
-                showNotification(`Erro ao buscar dados de ${col}.`, 'error');
-            });
+            return onSnapshot(q, (querySnapshot) => { setters[col](querySnapshot.docs.map(processFirestoreDoc) as any); },
+            (error) => { console.error(`Error fetching ${col}:`, error); showNotification(`Erro ao buscar dados de ${col}.`, 'error'); });
         });
-    
         return () => unsubscribers.forEach(unsub => unsub());
     }, [user, showNotification]);
     
     const handleAnimationEnd = useCallback(() => {
-        if (actionFeedbackState.onEnd) {
-            actionFeedbackState.onEnd();
-        }
+        if (actionFeedbackState.onEnd) actionFeedbackState.onEnd();
         setActionFeedbackState({ isOpen: false, variant: 'success', message: '', onEnd: undefined });
     }, [actionFeedbackState]);
 
-    // --- Data Handlers (Add, Update, Delete) ---
-    
     const handleAddCustomer = useCallback(async (customerData: Omit<Customer, 'id' | 'debtAmount' | 'lastVisitedAt'>) => {
         if (!user) return;
         setIsSaving(true);
-        const customerWithId: Customer = {
-            id: uuidv4(),
-            ...customerData,
-            createdAt: new Date(),
-            debtAmount: 0,
-            lastVisitedAt: null,
-        };
-    
+        const customerWithId: Customer = { id: uuidv4(), ...customerData, createdAt: new Date(), debtAmount: 0, lastVisitedAt: null };
         const originalCustomers = customers;
         setCustomers(prev => [...prev, customerWithId].sort((a,b) => a.name.localeCompare(b.name)));
-    
         try {
             const { id, ...payload } = customerWithId;
             const firestorePayload = processPayloadForFirestore(payload);
-            if(isOnline) {
-                await setDoc(doc(db, `users/${user.uid}/customers`, id), firestorePayload);
-            } else {
-                await queueMutation({ action: 'add', collectionPath: 'customers', payload: customerWithId });
-            }
+            if(isOnline) await setDoc(doc(db, `users/${user.uid}/customers`, id), firestorePayload); else await queueMutation({ action: 'add', collectionPath: 'customers', payload: customerWithId });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'success', message: 'Cliente Adicionado!' });
-        } catch (error) {
-            showNotification('Erro ao adicionar cliente. Alteração desfeita.', 'error');
-            setCustomers(originalCustomers);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao adicionar cliente.', 'error'); setCustomers(originalCustomers); console.error(error); }
+        finally { setIsSaving(false); }
     }, [customers, isOnline, user, showNotification]);
     
     const handleUpdateCustomer = useCallback(async (customer: Customer) => {
         if (!user) return;
         setIsSaving(true);
         const originalCustomers = customers;
-       
         setCustomers(prev => prev.map(c => c.id === customer.id ? customer : c));
         setEditCustomerModalState({ isOpen: false, customer: null });
-
         const { id, ...customerData } = customer;
         try {
             const firestorePayload = processPayloadForFirestore(customerData);
-            if (isOnline) {
-                await updateDoc(doc(db, `users/${user.uid}/customers`, id), firestorePayload);
-            } else {
-                 await queueMutation({ action: 'update', collectionPath: 'customers', docId: id, payload: customerData });
-            }
+            if (isOnline) await updateDoc(doc(db, `users/${user.uid}/customers`, id), firestorePayload); else await queueMutation({ action: 'update', collectionPath: 'customers', docId: id, payload: customerData });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'edit', message: 'Cliente Atualizado!' });
-        } catch (error) {
-            showNotification('Erro ao atualizar cliente. Alterações desfeitas.', 'error');
-            setCustomers(originalCustomers);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao atualizar cliente.', 'error'); setCustomers(originalCustomers); console.error(error); }
+        finally { setIsSaving(false); }
     }, [customers, isOnline, user, showNotification]);
     
     const handleDeleteCustomer = useCallback(async (customerToDelete: Customer) => {
         if (!user) return;
         setIsSaving(true);
         const originalCustomers = customers;
-    
         setCustomers(prev => prev.filter(c => c.id !== customerToDelete.id));
         setDeletedCustomersLog(prev => [...prev, { customer: customerToDelete, deletedAt: new Date() }]);
         setDeleteModalState({ isOpen: false, customer: null });
-    
         try {
-            if(isOnline) {
-                await deleteDoc(doc(db, `users/${user.uid}/customers`, customerToDelete.id));
-            } else {
-                await queueMutation({ action: 'delete', collectionPath: 'customers', docId: customerToDelete.id, payload: {} });
-            }
+            if(isOnline) await deleteDoc(doc(db, `users/${user.uid}/customers`, customerToDelete.id)); else await queueMutation({ action: 'delete', collectionPath: 'customers', docId: customerToDelete.id, payload: {} });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'delete', message: 'Cliente Excluído!' });
         } catch (error) {
-            showNotification('Erro ao excluir cliente. Alteração desfeita.', 'error');
+            showNotification('Erro ao excluir cliente.', 'error');
             setCustomers(originalCustomers);
             setDeletedCustomersLog(prev => prev.filter(log => log.customer.id !== customerToDelete.id));
             console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } finally { setIsSaving(false); }
     }, [customers, isOnline, user, showNotification]);
 
     const handleAddBilling = useCallback(async (billing: Billing) => {
@@ -680,38 +514,20 @@ const App: React.FC = () => {
         setIsSaving(true);
         const originalCustomers = customers;
         const originalBillings = billings;
-    
         const customerToUpdate = originalCustomers.find(c => c.id === billing.customerId);
-        if (!customerToUpdate) {
-            showNotification('Cliente não encontrado para faturamento.', 'error');
-            setIsSaving(false);
-            return;
-        }
-    
-        const updatedEquipment = customerToUpdate.equipment.map(e =>
-            e.id === billing.equipmentId ? { ...e, relogioAnterior: billing.relogioAtual } : e
-        );
-        
+        if (!customerToUpdate) { showNotification('Cliente não encontrado.', 'error'); setIsSaving(false); return; }
+        const updatedEquipment = customerToUpdate.equipment.map(e => e.id === billing.equipmentId ? { ...e, relogioAnterior: billing.relogioAtual } : e);
         const debtToAdd = billing.paymentMethod === 'pending_payment' ? 0 : (billing.valorDebitoNegativo || 0);
-
-        const updatedCustomerData = {
-            equipment: updatedEquipment,
-            lastVisitedAt: new Date(),
-            debtAmount: (customerToUpdate.debtAmount || 0) + debtToAdd
-        };
+        const updatedCustomerData = { equipment: updatedEquipment, lastVisitedAt: new Date(), debtAmount: (customerToUpdate.debtAmount || 0) + debtToAdd };
         const updatedCustomer = { ...customerToUpdate, ...updatedCustomerData };
-    
         setBillings(prev => [...prev, billing]);
         setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
         setBillingModalState({ isOpen: false, customer: null, equipment: null });
-    
         try {
             const { id: billingId, ...billingPayload } = billing;
             const { id: customerId, ...customerPayload } = updatedCustomer;
-            
             const firestoreBillingPayload = processPayloadForFirestore(billingPayload);
             const firestoreCustomerPayload = processPayloadForFirestore(customerPayload);
-
             if (isOnline) {
                 const batch = writeBatch(db);
                 batch.set(doc(db, `users/${user.uid}/billings`, billingId), firestoreBillingPayload);
@@ -721,21 +537,14 @@ const App: React.FC = () => {
                 await queueMutation({ action: 'add', collectionPath: 'billings', payload: billing });
                 await queueMutation({ action: 'update', collectionPath: 'customers', docId: customerId, payload: customerPayload });
             }
-            
             if (billing.paymentMethod !== 'pending_payment') {
                 playSuccessSound();
                 setActionFeedbackState({ isOpen: true, variant: 'success', message: 'Cobrança Realizada!', onEnd: () => setReceiptActionsModalState({ isOpen: true, billing, isProvisional: false }) });
             } else {
                 setActionFeedbackState({ isOpen: true, variant: 'pending', message: 'Pagamento Pendente' });
             }
-        } catch (error) {
-            showNotification('Erro ao salvar faturamento. Alterações desfeitas.', 'error');
-            setCustomers(originalCustomers);
-            setBillings(originalBillings);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao salvar faturamento.', 'error'); setCustomers(originalCustomers); setBillings(originalBillings); console.error(error); }
+        finally { setIsSaving(false); }
     }, [billings, customers, isOnline, user, showNotification]);
     
     const handleUpdateBilling = useCallback(async (billing: Billing) => {
@@ -743,41 +552,23 @@ const App: React.FC = () => {
         setIsSaving(true);
         const originalBillings = billings;
         const originalCustomers = customers;
-
         const oldBilling = originalBillings.find(b => b.id === billing.id);
-        if (!oldBilling) {
-            showNotification('Cobrança original não encontrada.', 'error');
-            setIsSaving(false);
-            return;
-        }
-
+        if (!oldBilling) { showNotification('Cobrança original não encontrada.', 'error'); setIsSaving(false); return; }
         const customerToUpdate = customers.find(c => c.id === billing.customerId);
-        if (!customerToUpdate) {
-            showNotification('Cliente não encontrado.', 'error');
-            setIsSaving(false);
-            return;
-        }
-
+        if (!customerToUpdate) { showNotification('Cliente não encontrado.', 'error'); setIsSaving(false); return; }
         const oldDebtChange = oldBilling.valorDebitoNegativo || 0;
         const newDebtChange = billing.valorDebitoNegativo || 0;
         const debtDifference = newDebtChange - oldDebtChange;
-        
-        const nextBillingForEquipment = billings
-            .filter(b => b.equipmentId === billing.equipmentId && new Date(b.settledAt) > new Date(billing.settledAt))
-            .sort((a,b) => new Date(a.settledAt).getTime() - new Date(b.settledAt).getTime())[0];
-
+        const nextBillingForEquipment = billings.filter(b => b.equipmentId === billing.equipmentId && new Date(b.settledAt) > new Date(billing.settledAt)).sort((a,b) => new Date(a.settledAt).getTime() - new Date(b.settledAt).getTime())[0];
         const updatedCustomer = { ...customerToUpdate, debtAmount: customerToUpdate.debtAmount + debtDifference };
         setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
         setBillings(prev => prev.map(b => b.id === billing.id ? billing : b));
         setEditBillingModalState({ isOpen: false, billing: null });
-
         try {
             const { id: billingId, ...billingPayload } = billing;
             const { id: customerId, ...customerPayload } = updatedCustomer;
-
             let nextBillingPayload: any = null;
             let nextBillingId: string | undefined;
-
             if (nextBillingForEquipment) {
                 const updatedNextBilling = { ...nextBillingForEquipment, relogioAnterior: billing.relogioAtual };
                 setBillings(prev => prev.map(b => b.id === updatedNextBilling.id ? updatedNextBilling : b));
@@ -785,7 +576,6 @@ const App: React.FC = () => {
                 const { id, ...payload } = updatedNextBilling;
                 nextBillingPayload = payload;
             }
-
             if (isOnline) {
                 const batch = writeBatch(db);
                 batch.update(doc(db, `users/${user.uid}/billings`, billingId), processPayloadForFirestore(billingPayload));
@@ -799,14 +589,8 @@ const App: React.FC = () => {
             }
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'edit', message: 'Cobrança Atualizada!' });
-        } catch (error) {
-            showNotification('Erro ao atualizar cobrança.', 'error');
-            setBillings(originalBillings);
-            setCustomers(originalCustomers);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao atualizar cobrança.', 'error'); setBillings(originalBillings); setCustomers(originalCustomers); console.error(error); }
+        finally { setIsSaving(false); }
     }, [billings, customers, isOnline, user, showNotification]);
 
     const handleDeleteBilling = useCallback(async (billingId: string) => {
@@ -814,23 +598,16 @@ const App: React.FC = () => {
         setIsSaving(true);
         const originalBillings = billings;
         const originalCustomers = customers;
-    
         const billingToDelete = originalBillings.find(b => b.id === billingId);
         if (!billingToDelete) return;
         const customerToUpdate = originalCustomers.find(c => c.id === billingToDelete.customerId);
         if (!customerToUpdate) return;
-        
         const restoredRelogioAnterior = billingToDelete.relogioAnterior;
         const debtToRemove = billingToDelete.valorDebitoNegativo || 0;
-        const updatedCustomerPayload = { 
-            debtAmount: (customerToUpdate.debtAmount || 0) - debtToRemove, 
-            equipment: customerToUpdate.equipment.map(e => e.id === billingToDelete.equipmentId ? { ...e, relogioAnterior: restoredRelogioAnterior } : e) 
-        };
+        const updatedCustomerPayload = { debtAmount: (customerToUpdate.debtAmount || 0) - debtToRemove, equipment: customerToUpdate.equipment.map(e => e.id === billingToDelete.equipmentId ? { ...e, relogioAnterior: restoredRelogioAnterior } : e) };
         const updatedCustomer = { ...customerToUpdate, ...updatedCustomerPayload };
-    
         setBillings(prev => prev.filter(b => b.id !== billingId));
         setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
-        
         try {
             if (isOnline) {
                 const batch = writeBatch(db);
@@ -843,47 +620,24 @@ const App: React.FC = () => {
             }
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'delete', message: 'Cobrança Excluída!' });
-        } catch (error) {
-            showNotification('Erro ao excluir cobrança. As alterações foram desfeitas.', 'error');
-            setBillings(originalBillings);
-            setCustomers(originalCustomers);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao excluir cobrança.', 'error'); setBillings(originalBillings); setCustomers(originalCustomers); console.error(error); }
+        finally { setIsSaving(false); }
     }, [billings, customers, isOnline, user, showNotification]);
 
     const handleAddExpense = useCallback(async (description: string, amount: number, category: Expense['category']) => {
         if (!user) return;
         setIsSaving(true);
-        const newExpense: Expense = {
-            id: uuidv4(),
-            description,
-            amount,
-            category,
-            date: new Date(),
-        };
-
+        const newExpense: Expense = { id: uuidv4(), description, amount, category, date: new Date() };
         const originalExpenses = expenses;
         setExpenses(prev => [...prev, newExpense].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        
         try {
             const { id, ...payload } = newExpense;
             const firestorePayload = processPayloadForFirestore(payload);
-            if(isOnline) {
-                await setDoc(doc(db, `users/${user.uid}/expenses`, id), firestorePayload);
-            } else {
-                await queueMutation({ action: 'add', collectionPath: 'expenses', payload: newExpense });
-            }
+            if(isOnline) await setDoc(doc(db, `users/${user.uid}/expenses`, id), firestorePayload); else await queueMutation({ action: 'add', collectionPath: 'expenses', payload: newExpense });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'success', message: 'Despesa Adicionada!' });
-        } catch (error) {
-            showNotification('Erro ao adicionar despesa.', 'error');
-            setExpenses(originalExpenses);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao adicionar despesa.', 'error'); setExpenses(originalExpenses); console.error(error); }
+        finally { setIsSaving(false); }
     }, [expenses, isOnline, user, showNotification]);
 
     const handleDeleteExpense = useCallback(async (expenseId: string) => {
@@ -891,22 +645,12 @@ const App: React.FC = () => {
         setIsSaving(true);
         const originalExpenses = expenses;
         setExpenses(prev => prev.filter(e => e.id !== expenseId));
-
         try {
-            if(isOnline) {
-                await deleteDoc(doc(db, `users/${user.uid}/expenses`, expenseId));
-            } else {
-                await queueMutation({ action: 'delete', collectionPath: 'expenses', docId: expenseId, payload: {} });
-            }
+            if(isOnline) await deleteDoc(doc(db, `users/${user.uid}/expenses`, expenseId)); else await queueMutation({ action: 'delete', collectionPath: 'expenses', docId: expenseId, payload: {} });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'delete', message: 'Despesa Excluída!' });
-        } catch (error) {
-            showNotification('Erro ao excluir despesa.', 'error');
-            setExpenses(originalExpenses);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao excluir despesa.', 'error'); setExpenses(originalExpenses); console.error(error); }
+        finally { setIsSaving(false); }
     }, [expenses, isOnline, user, showNotification]);
 
     const handleAddDebtPayment = useCallback(async (customerId: string, details: { amountPaidDinheiro: number; amountPaidPix: number } | { amountToAdd: number }) => {
@@ -915,39 +659,21 @@ const App: React.FC = () => {
         const originalCustomers = customers;
         const customerToUpdate = customers.find(c => c.id === customerId);
         if (!customerToUpdate) return;
-
-        let updatedCustomer: Customer;
-        let debtPayment: DebtPayment | null = null;
-        let isPayingDebt = false;
-
-        if ('amountToAdd' in details) { // Adding debt
-            const newDebtAmount = customerToUpdate.debtAmount + details.amountToAdd;
-            updatedCustomer = { ...customerToUpdate, debtAmount: newDebtAmount };
-        } else { // Paying debt
+        let updatedCustomer: Customer, debtPayment: DebtPayment | null = null, isPayingDebt = false;
+        if ('amountToAdd' in details) {
+            updatedCustomer = { ...customerToUpdate, debtAmount: customerToUpdate.debtAmount + details.amountToAdd };
+        } else {
             isPayingDebt = true;
-            const { amountPaidDinheiro, amountPaidPix } = details;
-            const totalPaid = amountPaidDinheiro + amountPaidPix;
-            
-            const newDebtAmount = Math.max(0, customerToUpdate.debtAmount - totalPaid);
-            updatedCustomer = { ...customerToUpdate, debtAmount: newDebtAmount };
-
+            const { amountPaidDinheiro, amountPaidPix } = details, totalPaid = amountPaidDinheiro + amountPaidPix;
+            updatedCustomer = { ...customerToUpdate, debtAmount: Math.max(0, customerToUpdate.debtAmount - totalPaid) };
             const methodsUsed: ('dinheiro' | 'pix')[] = [];
-            if (amountPaidDinheiro > 0) methodsUsed.push('dinheiro');
-            if (amountPaidPix > 0) methodsUsed.push('pix');
-
+            if (amountPaidDinheiro > 0) methodsUsed.push('dinheiro'); if (amountPaidPix > 0) methodsUsed.push('pix');
             let paymentMethod: DebtPayment['paymentMethod'] = methodsUsed.length > 1 ? 'misto' : (methodsUsed[0] || 'dinheiro');
-
-            debtPayment = {
-                id: uuidv4(), customerId, customerName: customerToUpdate.name, amountPaid: totalPaid, paidAt: new Date(), paymentMethod,
-                amountPaidDinheiro: amountPaidDinheiro > 0 ? amountPaidDinheiro : undefined,
-                amountPaidPix: amountPaidPix > 0 ? amountPaidPix : undefined,
-            };
+            debtPayment = { id: uuidv4(), customerId, customerName: customerToUpdate.name, amountPaid: totalPaid, paidAt: new Date(), paymentMethod, amountPaidDinheiro: amountPaidDinheiro > 0 ? amountPaidDinheiro : undefined, amountPaidPix: amountPaidPix > 0 ? amountPaidPix : undefined };
         }
-        
         setCustomers(prev => prev.map(c => c.id === customerId ? updatedCustomer : c));
         if (debtPayment) setDebtPayments(prev => [...prev, debtPayment!]);
         setDebtPaymentModalState({isOpen: false, customer: null});
-
         try {
             const customerPayload = { debtAmount: updatedCustomer.debtAmount };
             if (isOnline) {
@@ -955,17 +681,13 @@ const App: React.FC = () => {
                 batch.update(doc(db, `users/${user.uid}/customers`, updatedCustomer.id), customerPayload);
                 if (debtPayment) {
                     const { id: dpId, ...dpPayload } = debtPayment;
-                    const firestoreDpPayload = processPayloadForFirestore(dpPayload);
-                    batch.set(doc(db, `users/${user.uid}/debtPayments`, dpId), firestoreDpPayload);
+                    batch.set(doc(db, `users/${user.uid}/debtPayments`, dpId), processPayloadForFirestore(dpPayload));
                 }
                 await batch.commit();
             } else {
                 await queueMutation({ action: 'update', collectionPath: 'customers', docId: updatedCustomer.id, payload: customerPayload });
-                if (debtPayment) {
-                    await queueMutation({ action: 'add', collectionPath: 'debtPayments', payload: debtPayment });
-                }
+                if (debtPayment) await queueMutation({ action: 'add', collectionPath: 'debtPayments', payload: debtPayment });
             }
-            
             if (isPayingDebt && debtPayment) {
                 playSuccessSound();
                 setActionFeedbackState({ isOpen: true, variant: 'success', message: 'Pagamento Recebido!', onEnd: () => setDebtReceiptActionsModalState({ isOpen: true, debtPayment, customer: updatedCustomer }) });
@@ -973,155 +695,92 @@ const App: React.FC = () => {
                 playSuccessSound();
                 setActionFeedbackState({ isOpen: true, variant: 'edit', message: 'Dívida Adicionada!' });
             }
-        } catch (error) {
-            showNotification('Erro ao processar dívida.', 'error');
-            setCustomers(originalCustomers);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao processar dívida.', 'error'); setCustomers(originalCustomers); console.error(error); }
+        finally { setIsSaving(false); }
     }, [customers, isOnline, user, showNotification]);
-
 
     const handleForgiveDebt = useCallback(async (customer: Customer) => {
         if (!user) return;
         setIsSaving(true);
         const originalCustomers = customers;
         const updatedCustomer = { ...customer, debtAmount: 0 };
-
         setCustomers(prev => prev.map(c => c.id === customer.id ? updatedCustomer : c));
         setForgiveDebtModalState({ isOpen: false, customer: null });
         setDebtPaymentModalState({ isOpen: false, customer: null });
-
         try {
             const payload = { debtAmount: 0 };
-            if (isOnline) {
-                await updateDoc(doc(db, `users/${user.uid}/customers`, customer.id), payload);
-            } else {
-                await queueMutation({ action: 'update', collectionPath: 'customers', docId: customer.id, payload });
-            }
+            if (isOnline) await updateDoc(doc(db, `users/${user.uid}/customers`, customer.id), payload); else await queueMutation({ action: 'update', collectionPath: 'customers', docId: customer.id, payload });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'delete', message: 'Dívida Perdoada!' });
-        } catch (error) {
-            setCustomers(originalCustomers);
-            showNotification('Erro ao perdoar dívida.', 'error');
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { setCustomers(originalCustomers); showNotification('Erro ao perdoar dívida.', 'error'); console.error(error); }
+        finally { setIsSaving(false); }
     }, [customers, isOnline, user, showNotification]);
-
 
     const handleAddWarning = useCallback(async (customerId: string, message: string) => {
         if (!user) return;
         const customer = customers.find(c => c.id === customerId);
         if (!customer) return;
-
         const newWarning: Warning = { id: uuidv4(), customerId, customerName: customer.name, message, createdAt: new Date(), isResolved: false };
         const originalWarnings = warnings;
         setWarnings(prev => [newWarning, ...prev]);
-
         try {
             const { id, ...payload } = newWarning;
-            const firestorePayload = processPayloadForFirestore(payload);
-            if (isOnline) {
-                await setDoc(doc(db, `users/${user.uid}/warnings`, id), firestorePayload);
-            } else {
-                await queueMutation({ action: 'add', collectionPath: 'warnings', payload: newWarning });
-            }
+            if (isOnline) await setDoc(doc(db, `users/${user.uid}/warnings`, id), processPayloadForFirestore(payload)); else await queueMutation({ action: 'add', collectionPath: 'warnings', payload: newWarning });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'success', message: 'Aviso Adicionado!' });
-        } catch (error) {
-            setWarnings(originalWarnings);
-            showNotification("Erro ao adicionar aviso.", "error");
-            console.error(error);
-        }
+        } catch (error) { setWarnings(originalWarnings); showNotification("Erro ao adicionar aviso.", "error"); console.error(error); }
     }, [customers, warnings, isOnline, user, showNotification]);
 
     const handleResolveWarning = useCallback(async (warningId: string) => {
         if (!user) return;
         const originalWarnings = warnings;
         setWarnings(prev => prev.map(w => w.id === warningId ? { ...w, isResolved: true } : w));
-
         try {
             const payload = { isResolved: true };
-            if (isOnline) {
-                await updateDoc(doc(db, `users/${user.uid}/warnings`, warningId), payload);
-            } else {
-                await queueMutation({ action: 'update', collectionPath: 'warnings', docId: warningId, payload });
-            }
+            if (isOnline) await updateDoc(doc(db, `users/${user.uid}/warnings`, warningId), payload); else await queueMutation({ action: 'update', collectionPath: 'warnings', docId: warningId, payload });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'edit', message: 'Aviso Resolvido!' });
-        } catch (error) {
-            setWarnings(originalWarnings);
-            showNotification("Erro ao resolver aviso.", "error");
-            console.error(error);
-        }
+        } catch (error) { setWarnings(originalWarnings); showNotification("Erro ao resolver aviso.", "error"); console.error(error); }
     }, [warnings, isOnline, user, showNotification]);
 
     const handleDeleteWarning = useCallback(async (warningId: string) => {
         if (!user) return;
         const originalWarnings = warnings;
         setWarnings(prev => prev.filter(w => w.id !== warningId));
-        
         try {
-            if (isOnline) {
-                await deleteDoc(doc(db, `users/${user.uid}/warnings`, warningId));
-            } else {
-                await queueMutation({ action: 'delete', collectionPath: 'warnings', docId: warningId, payload: {} });
-            }
+            if (isOnline) await deleteDoc(doc(db, `users/${user.uid}/warnings`, warningId)); else await queueMutation({ action: 'delete', collectionPath: 'warnings', docId: warningId, payload: {} });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'delete', message: 'Aviso Excluído!' });
-        } catch (error) {
-            setWarnings(originalWarnings);
-            showNotification("Erro ao excluir aviso.", "error");
-            console.error(error);
-        }
+        } catch (error) { setWarnings(originalWarnings); showNotification("Erro ao excluir aviso.", "error"); console.error(error); }
     }, [warnings, isOnline, user, showNotification]);
 
     const handleFinalizePendingPayment = useCallback(async (updatedBilling: Billing) => {
         if (!user) return;
         setIsSaving(true);
-        const originalBillings = billings;
-        const originalCustomers = customers;
-
+        const originalBillings = billings, originalCustomers = customers;
         const customerToUpdate = customers.find(c => c.id === updatedBilling.customerId);
         if (!customerToUpdate) return;
-
         const debtToAdd = updatedBilling.valorDebitoNegativo || 0;
         const updatedCustomer = { ...customerToUpdate, debtAmount: (customerToUpdate.debtAmount || 0) + debtToAdd };
-
         setBillings(prev => prev.map(b => b.id === updatedBilling.id ? updatedBilling : b));
         setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
         setFinalizePaymentModalState({ isOpen: false, billing: null });
-
         try {
             const { id: billingId, ...billingPayload } = updatedBilling;
             const { id: customerId, ...customerPayload } = updatedCustomer;
-            
-            const firestoreBillingPayload = processPayloadForFirestore(billingPayload);
-            const firestoreCustomerPayload = processPayloadForFirestore(customerPayload);
-
             if (isOnline) {
                 const batch = writeBatch(db);
-                batch.update(doc(db, `users/${user.uid}/billings`, billingId), firestoreBillingPayload);
-                batch.update(doc(db, `users/${user.uid}/customers`, customerId), firestoreCustomerPayload);
+                batch.update(doc(db, `users/${user.uid}/billings`, billingId), processPayloadForFirestore(billingPayload));
+                batch.update(doc(db, `users/${user.uid}/customers`, customerId), processPayloadForFirestore(customerPayload));
                 await batch.commit();
             } else {
                 await queueMutation({ action: 'update', collectionPath: 'billings', docId: billingId, payload: billingPayload });
                 await queueMutation({ action: 'update', collectionPath: 'customers', docId: customerId, payload: customerPayload });
             }
-            
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'success', message: 'Pagamento Finalizado!', onEnd: () => setReceiptActionsModalState({ isOpen: true, billing: updatedBilling, isProvisional: false }) });
-        } catch (error) {
-            showNotification('Erro ao finalizar pagamento.', 'error');
-            setBillings(originalBillings);
-            setCustomers(originalCustomers);
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { showNotification('Erro ao finalizar pagamento.', 'error'); setBillings(originalBillings); setCustomers(originalCustomers); console.error(error); }
+        finally { setIsSaving(false); }
     }, [billings, customers, isOnline, user, showNotification]);
     
     const handleTriggerProvisionalReceiptAction = useCallback((billing: Billing, onComplete: () => void) => {
@@ -1131,173 +790,110 @@ const App: React.FC = () => {
 
     const handleSaveRoute = useCallback(async (name: string, customerIds: string[]) => {
         if (!user) return;
-        if (!name.trim()) {
-            showNotification("O nome da rota é obrigatório.", "error");
-            return;
-        }
-        if (customerIds.length === 0) {
-            showNotification("Selecione pelo menos um cliente para a rota.", "error");
-            return;
-        }
-        
+        if (!name.trim()) { showNotification("O nome da rota é obrigatório.", "error"); return; }
+        if (customerIds.length === 0) { showNotification("Selecione pelo menos um cliente para a rota.", "error"); return; }
         setIsSaving(true);
         setIsRouteCreationModalOpen(false);
-    
         try {
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
-            });
-            
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true }));
             const { latitude, longitude } = position.coords;
-            
-            const customersToVisit = customers.filter(c => 
-                customerIds.includes(c.id) && c.latitude != null && c.longitude != null
-            ) as (Customer & { latitude: number; longitude: number; })[];
-            
-            const orderedCustomers = optimizeRoute(latitude, longitude, customersToVisit);
-            const orderedCustomerIds = orderedCustomers.map(c => c.id);
-            
-            const newRoute: Route = {
-                id: uuidv4(),
-                name,
-                customerIds: orderedCustomerIds,
-                createdAt: new Date(),
-            };
-    
+            const customersToVisit = customers.filter(c => customerIds.includes(c.id) && c.latitude != null && c.longitude != null) as (Customer & { latitude: number; longitude: number; })[];
+            const orderedCustomerIds = optimizeRoute(latitude, longitude, customersToVisit).map(c => c.id);
+            const newRoute: Route = { id: uuidv4(), name, customerIds: orderedCustomerIds, createdAt: new Date() };
             const { id, ...payload } = newRoute;
-            const firestorePayload = processPayloadForFirestore(payload);
-            
-            if (isOnline) {
-                await setDoc(doc(db, `users/${user.uid}/routes`, id), firestorePayload);
-            } else {
-                await queueMutation({ action: 'add', collectionPath: 'routes', payload: newRoute });
-            }
-            
+            if (isOnline) await setDoc(doc(db, `users/${user.uid}/routes`, id), processPayloadForFirestore(payload)); else await queueMutation({ action: 'add', collectionPath: 'routes', payload: newRoute });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'success', message: 'Rota Salva!' });
-    
         } catch (error) {
             console.error("Error creating route:", error);
             let message = 'Erro ao criar a rota.';
-            if (error instanceof GeolocationPositionError && error.code === 1) {
-                message = 'Permissão de localização negada. A rota não pode ser otimizada.';
-            }
+            if (error instanceof GeolocationPositionError && error.code === 1) message = 'Permissão de localização negada. A rota não pode ser otimizada.';
             showNotification(message, "error");
-        } finally {
-            setIsSaving(false);
-        }
+        } finally { setIsSaving(false); }
     }, [user, customers, isOnline, showNotification]);
 
     const handleDeleteRoute = useCallback(async (routeId: string) => {
         if (!user) return;
-        
         const originalRoutes = routes;
         setRoutes(prev => prev.filter(r => r.id !== routeId));
-        
         try {
-            if (isOnline) {
-                await deleteDoc(doc(db, `users/${user.uid}/routes`, routeId));
-            } else {
-                await queueMutation({ action: 'delete', collectionPath: 'routes', docId: routeId, payload: {} });
-            }
+            if (isOnline) await deleteDoc(doc(db, `users/${user.uid}/routes`, routeId)); else await queueMutation({ action: 'delete', collectionPath: 'routes', docId: routeId, payload: {} });
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'delete', message: 'Rota Excluída!' });
-        } catch (error) {
-            console.error("Error deleting route:", error);
-            showNotification("Erro ao excluir a rota.", "error");
-            setRoutes(originalRoutes);
-        }
+        } catch (error) { console.error("Error deleting route:", error); showNotification("Erro ao excluir a rota.", "error"); setRoutes(originalRoutes); }
     }, [user, routes, isOnline, showNotification]);
 
-    // --- Modal Triggers ---
     const handleOpenBillingModal = useCallback((customer: Customer) => {
         if (customer.equipment?.length === 1) {
             setBillingModalState({ isOpen: true, customer, equipment: customer.equipment[0] });
-        } else {
+        } else if (customer.equipment && customer.equipment.length > 1) {
             setEquipmentSelectionModalState({ isOpen: true, customer });
+        } else {
+            showNotification(`${customer.name} não possui equipamentos para faturar.`, 'error');
         }
+    }, [showNotification]);
+
+    const handleGenerateSingleLabel = useCallback((equipment: EquipmentWithCustomer) => {
+        setLabelModalState({ isOpen: true, equipment });
     }, []);
+
+    const handleStartBillingByEquipmentNumber = useCallback((equipmentNumber: string) => {
+        let foundCustomer: Customer | null = null;
+        let foundEquipment: Equipment | null = null;
+
+        for (const customer of customers) {
+            const equipment = customer.equipment?.find(e => e.numero.toLowerCase() === equipmentNumber.toLowerCase());
+            if (equipment) {
+                foundCustomer = customer;
+                foundEquipment = equipment;
+                break;
+            }
+        }
+
+        setIsBillingStartModalOpen(false);
+        if (foundCustomer && foundEquipment) {
+             setBillingModalState({ isOpen: true, customer: foundCustomer, equipment: foundEquipment });
+        } else {
+            showNotification(`Equipamento com o número "${equipmentNumber}" não foi encontrado.`, 'error');
+        }
+    }, [customers, showNotification]);
 
     const handleSelectEquipmentForBilling = useCallback((equipment: Equipment) => {
         setBillingModalState({ isOpen: true, customer: equipmentSelectionModalState.customer, equipment });
         setEquipmentSelectionModalState({ isOpen: false, customer: null });
     }, [equipmentSelectionModalState.customer]);
     
-    const handleOpenEditBillingModal = useCallback((billing: Billing) => {
-        setEditBillingModalState({ isOpen: true, billing });
-    }, []);
-    
-    const handleOpenEditCustomerModal = useCallback((customer: Customer) => {
-        setEditCustomerModalState({ isOpen: true, customer });
-    }, []);
-    
-    const handleOpenDeleteModal = useCallback((customer: Customer) => {
-        setDeleteModalState({ isOpen: true, customer });
-    }, []);
-
-    const handleOpenDebtPaymentModal = useCallback((customer: Customer) => {
-        setDebtPaymentModalState({ isOpen: true, customer });
-    }, []);
-
-    const handleOpenHistoryModal = useCallback((customer: Customer) => {
-        setHistoryModalState({ isOpen: true, customer });
-    }, []);
-    
-    const handleOpenShareCustomerModal = useCallback((customer: Customer) => {
-        setShareCustomerModalState({ isOpen: true, customer });
-    }, []);
-    
-    const handlePrintCustomerSheet = useCallback((customer: Customer) => {
-        setCustomerToPrint(customer);
-    }, []);
+    const handleOpenEditBillingModal = useCallback((billing: Billing) => setEditBillingModalState({ isOpen: true, billing }), []);
+    const handleOpenEditCustomerModal = useCallback((customer: Customer) => setEditCustomerModalState({ isOpen: true, customer }), []);
+    const handleOpenDeleteModal = useCallback((customer: Customer) => setDeleteModalState({ isOpen: true, customer }), []);
+    const handleOpenDebtPaymentModal = useCallback((customer: Customer) => setDebtPaymentModalState({ isOpen: true, customer }), []);
+    const handleOpenHistoryModal = useCallback((customer: Customer) => setHistoryModalState({ isOpen: true, customer }), []);
+    const handleOpenShareCustomerModal = useCallback((customer: Customer) => setShareCustomerModalState({ isOpen: true, customer }), []);
+    const handlePrintCustomerSheet = useCallback((customer: Customer) => setCustomerToPrint(customer), []);
     
     const handleOpenLocationActions = useCallback((customer: Customer) => {
-        if (customer.latitude && customer.longitude) {
-            setLocationActionsModalState({ isOpen: true, customer });
-        } else {
-            setSaveLocationModalState({ isOpen: true, customer });
-        }
+        if (customer.latitude && customer.longitude) setLocationActionsModalState({ isOpen: true, customer }); else setSaveLocationModalState({ isOpen: true, customer });
     }, []);
 
     const handleSaveLocation = useCallback(async (customer: Customer) => {
-        if (!navigator.geolocation) {
-            showNotification("Geolocalização não é suportada neste navegador.", "error");
-            return;
-        }
+        if (!navigator.geolocation) { showNotification("Geolocalização não é suportada.", "error"); return; }
         setIsGeolocating(true);
         setSaveLocationModalState({ isOpen: false, customer: null });
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                const updatedCustomer = { ...customer, latitude, longitude };
-                handleUpdateCustomer(updatedCustomer);
-                setIsGeolocating(false);
-            },
-            (error) => {
-                let message = "Erro ao obter localização.";
-                if (error.code === 1) message = "Permissão de localização negada.";
-                showNotification(message, "error");
-                setIsGeolocating(false);
-            },
+            (position) => { handleUpdateCustomer({ ...customer, latitude: position.coords.latitude, longitude: position.coords.longitude }); setIsGeolocating(false); },
+            (error) => { showNotification(error.code === 1 ? "Permissão de localização negada." : "Erro ao obter localização.", "error"); setIsGeolocating(false); },
             { enableHighAccuracy: true }
         );
     }, [handleUpdateCustomer, showNotification]);
     
     const handleWhatsAppActions = useCallback((customer: Customer) => {
-        if (customer.telefone) {
-            const phone = customer.telefone.replace(/\D/g, '');
-            const text = encodeURIComponent(`Olá ${customer.name}, tudo bem?`);
-            window.open(`https://wa.me/55${phone}?text=${text}`, '_blank');
-        } else {
-            setAddPhoneModalState({ isOpen: true, customer });
-        }
+        if (customer.telefone) window.open(`https://wa.me/55${customer.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${customer.name}, tudo bem?`)}`, '_blank'); else setAddPhoneModalState({ isOpen: true, customer });
     }, []);
 
     const handleAddPhone = useCallback(async (phone: string) => {
         const customer = addPhoneModalState.customer;
         if (!customer) return;
-        const updatedCustomer = { ...customer, telefone: phone };
-        await handleUpdateCustomer(updatedCustomer);
+        await handleUpdateCustomer({ ...customer, telefone: phone });
         setAddPhoneModalState({ isOpen: false, customer: null });
     }, [addPhoneModalState.customer, handleUpdateCustomer]);
 
@@ -1305,35 +901,23 @@ const App: React.FC = () => {
         if (deferredPrompt) {
             deferredPrompt.prompt();
             deferredPrompt.userChoice.then((choiceResult: any) => {
-                if (choiceResult.outcome === 'accepted') {
-                    console.log('User accepted the install prompt');
-                }
+                if (choiceResult.outcome === 'accepted') console.log('User accepted the install prompt');
                 setDeferredPrompt(null);
                 setIsInstallBannerVisible(false);
             });
         }
     };
     
-    const setTheme = (newTheme: Theme) => {
-        setThemeState(newTheme);
-    };
+    const setTheme = (newTheme: Theme) => setThemeState(newTheme);
 
     const handleExportData = useCallback(() => {
-        const dataToExport = {
-            customers,
-            billings,
-            expenses,
-            debtPayments,
-            warnings,
-            routes,
-        };
+        const dataToExport = { customers, billings, expenses, debtPayments, warnings, routes };
         const jsonString = JSON.stringify(dataToExport, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
         a.href = url;
-        a.download = `backup-ivopay-sistemas-${timestamp}.json`;
+        a.download = `backup-ivopay-sistemas-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
         a.click();
         URL.revokeObjectURL(url);
         const backupTimestamp = new Date().toISOString();
@@ -1343,139 +927,88 @@ const App: React.FC = () => {
     }, [customers, billings, expenses, debtPayments, warnings, routes, showNotification]);
 
     const handleMergeData = useCallback(async (file: File) => {
-        if (!user) {
-            showNotification("Você precisa estar logado para importar dados.", "error");
-            return;
-        }
+        if (!user) { showNotification("Você precisa estar logado.", "error"); return; }
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
                 const data = JSON.parse(event.target?.result as string);
-                
-                if (!data.customers || !Array.isArray(data.customers)) {
-                    throw new Error("Arquivo de backup inválido. A coleção 'customers' é obrigatória.");
-                }
-
+                if (!data.customers || !Array.isArray(data.customers)) throw new Error("Arquivo de backup inválido.");
                 setIsSaving(true);
                 const batch = writeBatch(db);
                 const collections = ['customers', 'billings', 'expenses', 'debtPayments', 'warnings', 'routes'];
-
                 for (const colName of collections) {
                     if(data[colName] && Array.isArray(data[colName])) {
                         for (const item of data[colName]) {
                             const { id, ...payload } = item;
-                            if (!id || typeof id !== 'string') {
-                                console.warn(`Item in ${colName} is missing a valid ID, skipping.`, item);
-                                continue;
-                            }
-                            const firestorePayload = processPayloadForFirestore(payload);
-                            const docRef = doc(db, `users/${user.uid}/${colName}`, id);
-                            batch.set(docRef, firestorePayload, { merge: true });
+                            if (!id || typeof id !== 'string') { console.warn(`Item in ${colName} is missing a valid ID, skipping.`, item); continue; }
+                            batch.set(doc(db, `users/${user.uid}/${colName}`, id), processPayloadForFirestore(payload), { merge: true });
                         }
                     }
                 }
-
                 await batch.commit();
                 await clearOfflineQueue();
-
                 showNotification('Dados mesclados com sucesso! A página será recarregada.', 'success');
                 setTimeout(() => window.location.reload(), 2000);
             } catch (error) {
                 console.error("Erro ao mesclar dados: ", error);
-                let errorMessage = 'Ocorreu um erro ao mesclar os dados.';
-                if (error instanceof Error) {
-                    errorMessage = error.message.includes("permissions") ? "Erro de permissão ao importar." : "O arquivo de backup parece ser inválido.";
-                }
-                showNotification(errorMessage, 'error');
-            } finally {
-                setIsSaving(false);
-            }
+                let msg = error instanceof Error && error.message.includes("permissions") ? "Erro de permissão." : "Arquivo de backup inválido.";
+                showNotification(msg, 'error');
+            } finally { setIsSaving(false); }
         };
         reader.readAsText(file);
     }, [user, showNotification]);
 
     const handleDeleteAllData = useCallback(async () => {
-        if (!user) {
-            showNotification("Você precisa estar logado.", "error");
-            return;
-        }
+        if (!user) { showNotification("Você precisa estar logado.", "error"); return; }
         setIsSaving(true);
         setIsDeleteAllDataModalOpen(false);
         try {
             const batch = writeBatch(db);
             const collections = ['customers', 'billings', 'expenses', 'debtPayments', 'warnings', 'routes'];
-    
             for (const col of collections) {
                 const snapshot = await getDocs(collection(db, `users/${user.uid}/${col}`));
-                snapshot.forEach(d => {
-                    batch.delete(d.ref);
-                });
+                snapshot.forEach(d => batch.delete(d.ref));
             }
-    
             await batch.commit();
             await clearOfflineQueue();
             playSuccessSound();
             setActionFeedbackState({ isOpen: true, variant: 'delete', message: 'Todos os Dados Apagados' });
-        } catch (error) {
-            console.error("Erro ao apagar dados:", error);
-            showNotification("Falha ao apagar os dados.", "error");
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (error) { console.error("Erro ao apagar dados:", error); showNotification("Falha ao apagar os dados.", "error"); }
+        finally { setIsSaving(false); }
     }, [user, showNotification]);
 
-    const handleThermalPrint = useCallback(async (title: string, content: string) => {
-        setThermalPrintModalState({ isOpen: true, title, content });
-    }, []);
+    const handleThermalPrint = useCallback(async (title: string, content: string) => setThermalPrintModalState({ isOpen: true, title, content }), []);
 
     const shareText = useCallback(async (text: string, title: string) => {
         setIsSharing(true);
         try {
-            if (navigator.share) {
-                await navigator.share({ title, text });
-            } else {
-                await navigator.clipboard.writeText(text);
-                showNotification('Copiado para a área de transferência!', 'success');
-            }
-        } catch (error: any) {
-            if (error.name !== 'AbortError') {
-                showNotification('Erro ao compartilhar.', 'error');
-            }
-        } finally {
-            setIsSharing(false);
-        }
+            if (navigator.share) await navigator.share({ title, text }); else { await navigator.clipboard.writeText(text); showNotification('Copiado para a área de transferência!', 'success'); }
+        } catch (error: any) { if (error.name !== 'AbortError') showNotification('Erro ao compartilhar.', 'error'); }
+        finally { setIsSharing(false); }
     }, [showNotification]);
     
     const handlePrintSunmi = useCallback(async (text: string) => {
         setIsSharing(true);
         try {
-            showNotification('Imprimindo na impressora interna...', 'success');
+            showNotification('Imprimindo...', 'success');
             await sunmiPrinterService.printReceipt(text);
             showNotification('Impresso com sucesso!', 'success');
-        } catch (error) {
-            showNotification(error instanceof Error ? error.message : 'Falha na impressão térmica.', 'error');
-        } finally {
-            setIsSharing(false);
-        }
+        } catch (error) { showNotification(error instanceof Error ? error.message : 'Falha na impressão.', 'error'); }
+        finally { setIsSharing(false); }
     }, [showNotification]);
 
     const handleShareReceipt = useCallback(async (receiptData: Billing | DebtPayment) => {
         const isBilling = 'equipmentType' in receiptData;
-        const text = isBilling
-            ? generateBillingText(receiptData as Billing, false)
-            : generateDebtText(receiptData as DebtPayment);
-        const title = isBilling ? `Comprovante - ${receiptData.customerName}` : `Pagamento - ${receiptData.customerName}`;
+        const text = isBilling ? generateBillingText(receiptData as Billing, false) : generateDebtText(receiptData as DebtPayment);
+        const title = `Comprovante - ${receiptData.customerName}`;
         await shareText(text, title);
     }, [shareText]);
 
     const handlePrintPdfReceipt = useCallback(async (receiptData: Billing | DebtPayment) => {
         try {
             const isBilling = 'equipmentType' in receiptData;
-            const title = isBilling ? `Comprovante - ${(receiptData as Billing).customerName}` : `Pagamento - ${receiptData.customerName}`;
-
-            let qrCodeDataUrl: string | null = null;
-            let pixKey: string | null = null;
-
+            const title = `Comprovante - ${receiptData.customerName}`;
+            let qrCodeDataUrl: string | null = null, pixKey: string | null = null;
             try {
                 const savedConfig = localStorage.getItem('appPixConfig');
                 if (savedConfig) {
@@ -1483,47 +1016,28 @@ const App: React.FC = () => {
                     if (pixConfig.key && pixConfig.name && pixConfig.city) {
                         const pixPayload = generateValuelessPixPayload(pixConfig.key, pixConfig.name, pixConfig.city);
                         if (pixPayload) {
-                            qrCodeDataUrl = await QRCode.toDataURL(pixPayload, {
-                                width: 150,
-                                margin: 1,
-                                errorCorrectionLevel: 'M',
-                                color: { dark: '#000000', light: '#FFFFFF' },
-                            });
+                            qrCodeDataUrl = await QRCode.toDataURL(pixPayload, { width: 150, margin: 1, errorCorrectionLevel: 'M' });
                             pixKey = pixConfig.key;
                         }
                     }
                 }
-            } catch (error) {
-                console.error("Failed to generate PIX QR Code:", error);
-                // Do not show a notification to the user, just log the error
-            }
+            } catch (error) { console.error("Failed to generate PIX QR Code:", error); }
 
-            const SheetComponent = isBilling 
-                ? <ReceiptSheet billing={receiptData as Billing} qrCodeDataUrl={qrCodeDataUrl} pixKey={pixKey} /> 
-                : <DebtReceiptSheet debtPayment={receiptData as DebtPayment} qrCodeDataUrl={qrCodeDataUrl} pixKey={pixKey} />;
-            
+            const SheetComponent = isBilling ? <ReceiptSheet billing={receiptData as Billing} qrCodeDataUrl={qrCodeDataUrl} pixKey={pixKey} /> : <DebtReceiptSheet debtPayment={receiptData as DebtPayment} qrCodeDataUrl={qrCodeDataUrl} pixKey={pixKey} />;
             const content = ReactDOMServer.renderToString(SheetComponent);
-            const printableHtml = generatePrintableHtml(title, content);
             const printWindow = window.open('', '', 'height=800,width=400');
             if (printWindow) {
-                printWindow.document.write(printableHtml);
+                printWindow.document.write(generatePrintableHtml(title, content));
                 printWindow.document.close();
                 printWindow.focus();
                 setTimeout(() => { printWindow.print(); }, 500);
-            } else {
-                showNotification("Por favor, habilite pop-ups para imprimir.", "error");
-            }
-        } catch (error) {
-            console.error("Error generating PDF receipt:", error);
-            showNotification('Falha ao gerar PDF para impressão.', 'error');
-        }
+            } else showNotification("Habilite pop-ups para imprimir.", "error");
+        } catch (error) { console.error("Error generating PDF receipt:", error); showNotification('Falha ao gerar PDF.', 'error'); }
     }, [showNotification]);
 
     const handlePrintThermalReceipt = useCallback(async (receiptData: Billing | DebtPayment) => {
         const isBilling = 'equipmentType' in receiptData;
-        const text = isBilling
-            ? generateBillingText(receiptData as Billing, false)
-            : generateDebtText(receiptData as DebtPayment);
+        const text = isBilling ? generateBillingText(receiptData as Billing, false) : generateDebtText(receiptData as DebtPayment);
         await handlePrintSunmi(text);
     }, [handlePrintSunmi]);
 
@@ -1533,25 +1047,19 @@ const App: React.FC = () => {
         setFocusedCustomer(null);
     }, []);
 
-    const handleQrScanSuccess = useCallback((customer: Customer, equipment: Equipment) => {
-        setQrScannerModalOpen(false);
-        setView('COBRANCAS');
-        setBillingModalState({ isOpen: true, customer, equipment });
-    }, [setView]);
-
     const activeView = useMemo(() => {
         switch (currentView) {
             case 'DASHBOARD': return <DashboardView billings={billings} expenses={expenses} customers={customers} debtPayments={debtPayments} warnings={warnings} onAddWarning={handleAddWarning} onResolveWarning={handleResolveWarning} onDeleteWarning={handleDeleteWarning} lastBackupDate={lastBackupTimestamp} onNavigateToSettings={() => setView('CONFIGURACOES')} areValuesHidden={areValuesHidden} deletedCustomersLog={deletedCustomersLog} />;
-            case 'CLIENTES': return <ClientesView customers={customers} warnings={warnings} billings={billings} routes={routes} onAddCustomer={handleAddCustomer} isSaving={isSaving} showNotification={showNotification} onFocusCustomer={setFocusedCustomer} onBillCustomer={handleOpenBillingModal} onEditCustomer={handleOpenEditCustomerModal} onDeleteCustomer={handleOpenDeleteModal} onPayDebtCustomer={handleOpenDebtPaymentModal} onHistoryCustomer={handleOpenHistoryModal} onShareCustomer={handleOpenShareCustomerModal} onOpenScanner={() => setQrScannerModalOpen(true)} onLocationActions={handleOpenLocationActions} onWhatsAppActions={handleWhatsAppActions} onFinalizePendingPayment={(billing) => setFinalizePaymentModalState({ isOpen: true, billing })} areValuesHidden={areValuesHidden} onPendingPaymentAction={(customer, billing) => setPendingPaymentActionModalState({ isOpen: true, customer, pendingBilling: billing })} onOpenRouteCreator={() => setIsRouteCreationModalOpen(true)} onSaveRoute={handleSaveRoute} onDeleteRoute={handleDeleteRoute} />;
+            case 'CLIENTES': return <ClientesView customers={customers} warnings={warnings} billings={billings} routes={routes} onAddCustomer={handleAddCustomer} isSaving={isSaving} showNotification={showNotification} onFocusCustomer={setFocusedCustomer} onBillCustomer={handleOpenBillingModal} onEditCustomer={handleOpenEditCustomerModal} onDeleteCustomer={handleOpenDeleteModal} onPayDebtCustomer={handleOpenDebtPaymentModal} onHistoryCustomer={handleOpenHistoryModal} onShareCustomer={handleOpenShareCustomerModal} onLocationActions={handleOpenLocationActions} onWhatsAppActions={handleWhatsAppActions} onFinalizePendingPayment={(billing) => setFinalizePaymentModalState({ isOpen: true, billing })} areValuesHidden={areValuesHidden} onPendingPaymentAction={(customer, billing) => setPendingPaymentActionModalState({ isOpen: true, customer, pendingBilling: billing })} onOpenRouteCreator={() => setIsRouteCreationModalOpen(true)} onSaveRoute={handleSaveRoute} onDeleteRoute={handleDeleteRoute} onStartBilling={() => setIsBillingStartModalOpen(true)} />;
             case 'COBRANCAS': return <CobrancasView billings={billings} customers={customers} debtPayments={debtPayments} onShowActions={(billing) => setReceiptActionsModalState({ isOpen: true, billing, isProvisional: false })} onEditBilling={handleOpenEditBillingModal} onDeleteBilling={handleDeleteBilling} onFinalizePayment={(billing) => setFinalizePaymentModalState({ isOpen: true, billing })} onPayDebtCustomer={handleOpenDebtPaymentModal} areValuesHidden={areValuesHidden} />;
-            case 'EQUIPAMENTOS': return <EquipamentosView customers={customers} showNotification={showNotification} onOpenLabelGenerator={() => setLabelGenerationModalState({ isOpen: true })} />;
+            case 'EQUIPAMENTOS': return <EquipamentosView customers={customers} showNotification={showNotification} onOpenLabelGenerator={() => setLabelGenerationModalState({ isOpen: true })} onGenerateLabel={handleGenerateSingleLabel} />;
             case 'DESPESAS': return <DespesasView expenses={expenses} onAddExpense={handleAddExpense} onDeleteExpense={handleDeleteExpense} areValuesHidden={areValuesHidden} />;
             case 'ROTAS': return <RotasView customers={customers} />;
             case 'RELATORIOS': return <RelatoriosView customers={customers} billings={billings} expenses={expenses} debtPayments={debtPayments} onThermalPrint={handleThermalPrint} areValuesHidden={areValuesHidden} showNotification={showNotification} />;
             case 'CONFIGURACOES': return <ConfiguracoesView onExportData={handleExportData} onMergeData={handleMergeData} theme={theme} setTheme={setTheme} showNotification={showNotification} deferredPrompt={deferredPrompt} onInstallPrompt={handleInstallPrompt} onDeleteAllData={() => setIsDeleteAllDataModalOpen(true)} onLogout={handleLogout} onSwitchAccount={handleSwitchAccount} onAddNewAccount={handleAddNewAccount} isPrivacyModeEnabled={isPrivacyModeEnabled} onActivatePrivacyMode={handleActivatePrivacyMode} onDeactivatePrivacyMode={handleDeactivatePrivacyMode} />;
-            default: return <DashboardView billings={billings} expenses={expenses} customers={customers} debtPayments={debtPayments} warnings={warnings} onAddWarning={handleAddWarning} onResolveWarning={handleResolveWarning} onDeleteWarning={handleDeleteWarning} lastBackupDate={lastBackupTimestamp} onNavigateToSettings={() => setView('CONFIGURACOES')} areValuesHidden={areValuesHidden} deletedCustomersLog={deletedCustomersLog} />;
+            default: return <DashboardView billings={billings} expenses={expenses} customers={customers} debtPayments={debtPayments} warnings={warnings} onAddWarning={handleAddWarning} onResolveWarning={handleResolveWarning} onDeleteWarning={handleDeleteWarning} lastBackupDate={lastBackupTimestamp} onNavigateToSettings={() => setView('CONFIGURACOE')} areValuesHidden={areValuesHidden} deletedCustomersLog={deletedCustomersLog} />;
         }
-    }, [currentView, customers, billings, expenses, debtPayments, warnings, routes, isSaving, showNotification, theme, deferredPrompt, lastBackupTimestamp, deletedCustomersLog, handleAddCustomer, handleAddExpense, handleDeleteExpense, handleAddWarning, handleResolveWarning, handleDeleteWarning, handleOpenBillingModal, handleOpenDeleteModal, handleOpenDebtPaymentModal, handleOpenEditCustomerModal, handleOpenEditBillingModal, handleOpenHistoryModal, handleOpenLocationActions, handleOpenShareCustomerModal, handleWhatsAppActions, handleExportData, handleMergeData, handleInstallPrompt, setTheme, setView, handleThermalPrint, handleDeleteBilling, handleLogout, handleSwitchAccount, handleAddNewAccount, areValuesHidden, isPrivacyModeEnabled, handleActivatePrivacyMode, handleDeactivatePrivacyMode, handleSaveRoute, handleDeleteRoute]);
+    }, [currentView, customers, billings, expenses, debtPayments, warnings, routes, isSaving, showNotification, theme, deferredPrompt, lastBackupTimestamp, deletedCustomersLog, handleAddCustomer, handleAddExpense, handleDeleteExpense, handleAddWarning, handleResolveWarning, handleDeleteWarning, handleOpenBillingModal, handleOpenDeleteModal, handleOpenDebtPaymentModal, handleOpenEditCustomerModal, handleOpenEditBillingModal, handleOpenHistoryModal, handleOpenLocationActions, handleOpenShareCustomerModal, handleWhatsAppActions, handleExportData, handleMergeData, handleInstallPrompt, setTheme, setView, handleThermalPrint, handleDeleteBilling, handleLogout, handleSwitchAccount, handleAddNewAccount, areValuesHidden, isPrivacyModeEnabled, handleActivatePrivacyMode, handleDeactivatePrivacyMode, handleSaveRoute, handleDeleteRoute, handleStartBillingByEquipmentNumber, handleGenerateSingleLabel]);
     
     const equipmentForFinalization = useMemo(() => {
         const billing = finalizePaymentModalState.billing;
@@ -1571,39 +1079,29 @@ const App: React.FC = () => {
 
     return (
         <div className="flex h-full">
-            <Sidebar user={user} currentView={currentView} setView={setView} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} onOpenScanner={() => setQrScannerModalOpen(true)} />
+            <Sidebar user={user} currentView={currentView} setView={setView} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} onStartBilling={() => setIsBillingStartModalOpen(true)} />
             <div className="flex-1 flex flex-col h-full">
-                 <MobileHeader 
-                    title={viewTitles[currentView]} 
-                    onMenuClick={() => setIsSidebarOpen(true)} 
-                    deferredPrompt={deferredPrompt} 
-                    onInstallPrompt={handleInstallPrompt} 
-                    isPrivacyModeEnabled={isPrivacyModeEnabled} 
-                    isPrivacyUnlocked={isPrivacyUnlocked} 
-                    onToggleLock={handleToggleLock}
-                 />
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-900 pb-24 md:pb-8 pt-24 md:pt-8">
-                    {activeView}
-                </main>
+                 <MobileHeader title={viewTitles[currentView]} onMenuClick={() => setIsSidebarOpen(true)} deferredPrompt={deferredPrompt} onInstallPrompt={handleInstallPrompt} isPrivacyModeEnabled={isPrivacyModeEnabled} isPrivacyUnlocked={isPrivacyUnlocked} onToggleLock={handleToggleLock}/>
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-900 pb-24 md:pb-8 pt-24 md:pt-8">{activeView}</main>
             </div>
             
             <BottomNavBar currentView={currentView} setView={setView} />
             <Notification notification={notification} onClose={() => setNotification(null)} />
             {isInstallBannerVisible && deferredPrompt && <InstallPwaBanner onInstall={handleInstallPrompt} onDismiss={() => setIsInstallBannerVisible(false)} />}
             
-            {/* All Modals */}
+            <BillingStartModal isOpen={isBillingStartModalOpen} onClose={() => setIsBillingStartModalOpen(false)} onConfirm={handleStartBillingByEquipmentNumber} isSaving={isSaving} />
+            <LabelModal isOpen={labelModalState.isOpen} onClose={() => setLabelModalState({ isOpen: false, equipment: null })} equipment={labelModalState.equipment} />
             {billingModalState.isOpen && billingModalState.customer && billingModalState.equipment && <BillingModal isOpen={billingModalState.isOpen} onClose={() => setBillingModalState({ isOpen: false, customer: null, equipment: null })} onConfirm={handleAddBilling} customer={billingModalState.customer} equipment={billingModalState.equipment} onTriggerProvisionalReceiptAction={handleTriggerProvisionalReceiptAction} />}
             {editCustomerModalState.isOpen && editCustomerModalState.customer && <EditCustomerModal isOpen={editCustomerModalState.isOpen} onClose={() => setEditCustomerModalState({ isOpen: false, customer: null })} onConfirm={handleUpdateCustomer} customer={editCustomerModalState.customer} customers={customers} isSaving={isSaving} showNotification={showNotification} areValuesHidden={areValuesHidden} />}
             {debtPaymentModalState.isOpen && debtPaymentModalState.customer && <DebtPaymentModal isOpen={debtPaymentModalState.isOpen} onClose={() => setDebtPaymentModalState({ isOpen: false, customer: null })} onConfirm={(details) => handleAddDebtPayment(debtPaymentModalState.customer!.id, details)} onForgiveDebt={(customer) => setForgiveDebtModalState({ isOpen: true, customer })} customer={debtPaymentModalState.customer} />}
             {historyModalState.isOpen && historyModalState.customer && <HistoryModal isOpen={historyModalState.isOpen} onClose={() => setHistoryModalState({ isOpen: false, customer: null })} customer={historyModalState.customer} billings={billings} debtPayments={debtPayments} areValuesHidden={areValuesHidden} />}
             {deleteModalState.isOpen && deleteModalState.customer && <ActionModal isOpen={deleteModalState.isOpen} onClose={() => setDeleteModalState({ isOpen: false, customer: null })} onConfirm={() => handleDeleteCustomer(deleteModalState.customer!)} title="Excluir Cliente" confirmText="Sim, Excluir"><p>Tem certeza? Todos os dados, incluindo histórico de cobranças, serão perdidos.</p></ActionModal>}
             {equipmentSelectionModalState.isOpen && equipmentSelectionModalState.customer && <EquipmentSelectionModal isOpen={equipmentSelectionModalState.isOpen} onClose={() => setEquipmentSelectionModalState({ isOpen: false, customer: null })} customer={equipmentSelectionModalState.customer} onSelect={handleSelectEquipmentForBilling} />}
-            {receiptActionsModalState.isOpen && receiptActionsModalState.billing && <ReceiptActionsModal isOpen={receiptActionsModalState.isOpen} onClose={() => setReceiptActionsModalState({ isOpen: false, billing: null, isProvisional: false })} billing={receiptActionsModalState.billing} isProvisional={receiptActionsModalState.isProvisional} isSharing={isSharing} onShare={() => handleShareReceipt(receiptActionsModalState.billing!)} onPrint={() => handlePrintPdfReceipt(receiptActionsModalTate.billing!)} onPrintSunmi={() => handlePrintThermalReceipt(receiptActionsModalState.billing!)} showNotification={showNotification} />}
+            {receiptActionsModalState.isOpen && receiptActionsModalState.billing && <ReceiptActionsModal isOpen={receiptActionsModalState.isOpen} onClose={() => setReceiptActionsModalState({ isOpen: false, billing: null, isProvisional: false })} billing={receiptActionsModalState.billing} isProvisional={receiptActionsModalState.isProvisional} isSharing={isSharing} onShare={() => handleShareReceipt(receiptActionsModalState.billing!)} onPrint={() => handlePrintPdfReceipt(receiptActionsModalState.billing!)} onPrintSunmi={() => handlePrintThermalReceipt(receiptActionsModalState.billing!)} showNotification={showNotification} />}
             {debtReceiptActionsModalState.isOpen && debtReceiptActionsModalState.debtPayment && <DebtReceiptActionsModal isOpen={debtReceiptActionsModalState.isOpen} onClose={() => setDebtReceiptActionsModalState({ isOpen: false, debtPayment: null, customer: null })} debtPayment={debtReceiptActionsModalState.debtPayment} isSharing={isSharing} onShare={() => handleShareReceipt(debtReceiptActionsModalState.debtPayment!)} onPrint={() => handlePrintPdfReceipt(debtReceiptActionsModalState.debtPayment!)} onPrintSunmi={() => handlePrintThermalReceipt(debtReceiptActionsModalState.debtPayment!)} showNotification={showNotification} />}
             {shareCustomerModalState.isOpen && shareCustomerModalState.customer && <ShareCustomerModal isOpen={shareCustomerModalState.isOpen} onClose={() => setShareCustomerModalState({ isOpen: false, customer: null })} customer={shareCustomerModalState.customer} showNotification={showNotification} onPrintCustomer={handlePrintCustomerSheet} />}
             {labelGenerationModalState.isOpen && <LabelGenerationModal isOpen={labelGenerationModalState.isOpen} onClose={() => setLabelGenerationModalState({isOpen: false})} customers={customers} showNotification={showNotification} onConfirm={() => {}} />}
             {editBillingModalState.isOpen && editBillingModalState.billing && <EditBillingModal isOpen={editBillingModalState.isOpen} onClose={() => setEditBillingModalState({ isOpen: false, billing: null })} onConfirm={handleUpdateBilling} billing={editBillingModalState.billing} customers={customers} billings={billings} />}
-            {qrScannerModalOpen && <QrScannerModal isOpen={qrScannerModalOpen} onClose={() => setQrScannerModalOpen(false)} onScanSuccess={handleQrScanSuccess} showNotification={showNotification} customers={customers} />}
             {thermalPrintModalState.isOpen && <ThermalPrintActionsModal isOpen={thermalPrintModalState.isOpen} onClose={() => setThermalPrintModalState({ isOpen: false, title: '', content: '' })} title={thermalPrintModalState.title} content={thermalPrintModalState.content} onShare={shareText} onPrintSunmi={handlePrintSunmi} isSharing={isSharing} />}
             {locationActionsModalState.isOpen && locationActionsModalState.customer && <LocationActionsModal isOpen={locationActionsModalState.isOpen} onClose={() => setLocationActionsModalState({ isOpen: false, customer: null })} customer={locationActionsModalState.customer} />}
             {saveLocationModalState.isOpen && saveLocationModalState.customer && <ActionModal isOpen={saveLocationModalState.isOpen} onClose={() => setSaveLocationModalState({ isOpen: false, customer: null })} onConfirm={() => handleSaveLocation(saveLocationModalState.customer!)} title="Salvar Localização" confirmText="Salvar"><p>Deseja salvar a sua localização atual como o endereço para <strong>{saveLocationModalState.customer.name}</strong>?</p></ActionModal>}
@@ -1611,24 +1109,7 @@ const App: React.FC = () => {
             {isDeleteAllDataModalOpen && <ActionModal isOpen={isDeleteAllDataModalOpen} onClose={() => setIsDeleteAllDataModalOpen(false)} onConfirm={handleDeleteAllData} title="Apagar Todos os Dados" confirmText="Sim, Apagar Tudo"><p className="text-red-400">Esta ação é irreversível. Confirma que deseja apagar todos os dados da sua conta?</p></ActionModal>}
             {finalizePaymentModalState.isOpen && finalizePaymentModalState.billing && <FinalizePaymentModal isOpen={finalizePaymentModalState.isOpen} onClose={() => setFinalizePaymentModalState({ isOpen: false, billing: null })} onConfirm={handleFinalizePendingPayment} billing={finalizePaymentModalState.billing} />}
             {forgiveDebtModalState.isOpen && forgiveDebtModalState.customer && <ActionModal isOpen={forgiveDebtModalState.isOpen} onClose={() => setForgiveDebtModalState({ isOpen: false, customer: null })} onConfirm={() => handleForgiveDebt(forgiveDebtModalState.customer!)} title="Perdoar Dívida" confirmText="Sim, Perdoar"><p>Tem certeza que deseja zerar a dívida de <strong>{forgiveDebtModalState.customer.name}</strong> no valor de <strong>R$ {forgiveDebtModalState.customer.debtAmount.toFixed(2)}</strong>?</p></ActionModal>}
-            {pendingPaymentActionModalState.isOpen && (
-                <PendingPaymentActionModal
-                    isOpen={pendingPaymentActionModalState.isOpen}
-                    onClose={() => setPendingPaymentActionModalState({ isOpen: false, customer: null, pendingBilling: null })}
-                    onBillNew={() => {
-                        if(pendingPaymentActionModalState.customer) {
-                            handleOpenBillingModal(pendingPaymentActionModalState.customer);
-                        }
-                        setPendingPaymentActionModalState({ isOpen: false, customer: null, pendingBilling: null });
-                    }}
-                    onContinuePending={() => {
-                        if(pendingPaymentActionModalState.pendingBilling) {
-                            setFinalizePaymentModalState({ isOpen: true, billing: pendingPaymentActionModalState.pendingBilling });
-                        }
-                        setPendingPaymentActionModalState({ isOpen: false, customer: null, pendingBilling: null });
-                    }}
-                />
-            )}
+            {pendingPaymentActionModalState.isOpen && <PendingPaymentActionModal isOpen={pendingPaymentActionModalState.isOpen} onClose={() => setPendingPaymentActionModalState({ isOpen: false, customer: null, pendingBilling: null })} onBillNew={() => { if(pendingPaymentActionModalState.customer) handleOpenBillingModal(pendingPaymentActionModalState.customer); setPendingPaymentActionModalState({ isOpen: false, customer: null, pendingBilling: null }); }} onContinuePending={() => { if(pendingPaymentActionModalState.pendingBilling) setFinalizePaymentModalState({ isOpen: true, billing: pendingPaymentActionModalState.pendingBilling }); setPendingPaymentActionModalState({ isOpen: false, customer: null, pendingBilling: null }); }} />}
             {privacyPinModalState.isOpen && <PrivacyPinModal isOpen={privacyPinModalState.isOpen} mode={privacyPinModalState.mode} title={privacyPinModalState.title} error={privacyPinModalState.error} onConfirm={privacyPinModalState.onConfirm} onClose={() => setPrivacyPinModalState(prev => ({ ...prev, isOpen: false, error: '' }))} />}
             {isRouteCreationModalOpen && <RouteCreationModal isOpen={isRouteCreationModalOpen} onClose={() => setIsRouteCreationModalOpen(false)} customers={customers} onConfirm={handleSaveRoute} isSaving={isSaving} />}
 
