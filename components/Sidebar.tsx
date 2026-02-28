@@ -11,6 +11,8 @@ import { MapIcon } from './icons/MapIcon';
 import { CogIcon } from './icons/CogIcon';
 import { ListBulletIcon } from './icons/ListBulletIcon';
 import { QrCodeIcon } from './icons/QrCodeIcon';
+import { ArrowsPointingOutIcon } from './icons/ArrowsPointingOutIcon';
+import { ArrowsPointingInIcon } from './icons/ArrowsPointingInIcon';
 
 interface SidebarProps {
   currentView: View;
@@ -35,6 +37,29 @@ const navItems = [
 const secondaryNavItems: { view: View, label: string, icon: React.FC<any> }[] = [];
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOpen, onOpenScanner, user }) => {
+    const [isFullscreen, setIsFullscreen] = React.useState(false);
+
+    const toggleFullScreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    };
+
+    React.useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        };
+    }, []);
 
     const handleViewChange = (view: View) => {
         setView(view);
@@ -81,13 +106,23 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, setIsOp
                 {/* Settings Button - Top Right Corner */}
                 <button 
                     onClick={() => handleViewChange('CONFIGURACOES')}
-                    className="absolute top-3 right-3 p-2 rounded-full text-red-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors z-10"
+                    className="absolute top-3 right-3 p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 transition-colors z-10"
                     aria-label="Configurações"
                     title="Configurações"
                 >
                     <CogIcon className="w-6 h-6" />
                 </button>
                 
+                {/* Fullscreen button */}
+                <button
+                    onClick={toggleFullScreen}
+                    className="absolute top-14 right-3 p-2 rounded-full text-red-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors z-10"
+                    aria-label="Tela cheia"
+                    title="Tela cheia"
+                >
+                    {isFullscreen ? <ArrowsPointingInIcon className="w-6 h-6" /> : <ArrowsPointingOutIcon className="w-6 h-6" />}
+                </button>
+
                 <div className="mb-4 text-center">
                     <LogoIcon className="w-full h-auto pt-2" />
                 </div>
